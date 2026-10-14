@@ -22,10 +22,10 @@ Change parameters live, download the .glb, or view it in AR on a phone.
 <moonomat-viewer src="https://github.com/moonomat/moon-examples/blob/main/stairs.moons"></moonomat-viewer>
 ```
 
-The language
+## The language
 
-- Moon language specification (https://moonomat.com/docs/moon-spec)
-- All operations (https://moonomat.com/docs/moon-api-spec)
+- [Moon language specification](https://moonomat.com/docs/moon-spec)
+- [All operations](https://moonomat.com/docs/moon-api-spec)
 
 The Moon runtime evaluates a design deterministically and outputs glTF (also SVG, PNG,
 JSON). It runs in your browser as WebAssembly.
