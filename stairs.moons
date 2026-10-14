@@ -1,0 +1,3105 @@
+# moons v1
+main.moon: |
+    moon: "1.0"
+    doc: |
+        Made-to-measure staircase. Enter the floor-to-floor height; the stair is laid out to
+        DIN 18065 (residential): equal risers, the going on the walking line at mid-width, balanced
+        winders (or a landing) in the turn, headroom ≥ 2.00 m. By default the stairwell opening is
+        sized for the stair (the smallest that fits the layout with 2.00 m headroom plus a 5 cm
+        reserve), so every layout passes; with opening = existing, the entered opening is the real
+        stairwell and the stair is fitted to it — the comfortable stair (n = round(H / 0.18),
+        2R + G = 0.63) when it fits, otherwise the most comfortable arrangement of riser count,
+        going and flight split that passes every rule. A readout sign on the floor reports the
+        opening and the rules, measured on the built geometry, and flags anything no arrangement
+        can satisfy in red — a headroom clash also shows as a red zone cut out of the slab.
+        Straight, L (quarter turn) or U (half turn), left or right; wood or steel stringers, open
+        (with riser bars) or closed risers. The building is a clean cutaway: plaster walls,
+        limestone floors, dark section faces outside and on every cut. Wood, steel colour,
+        handrails, balusters and walls switch live in the viewer. Metres, Y-up; the lower floor is
+        at y = 0.
+    params:
+        floor_height:
+            default: 2.75
+            doc: Floor-to-floor height (m).
+            category: Size
+            min: 2.4
+            max: 3.5
+            step: 0.01
+        opening:
+            default: auto
+            doc: auto fits the opening to the stair; existing uses the sizes below.
+            category: Size
+            choices: [auto, existing]
+        opening_length:
+            default: 2.6
+            doc: Existing opening, length along the lower flight (m).
+            category: Size
+            min: 0.8
+            max: 5
+            step: 0.05
+        opening_width:
+            default: 1.9
+            doc: Existing opening, width across the lower flight (m).
+            category: Size
+            min: 0.8
+            max: 3.5
+            step: 0.05
+        stair_width:
+            default: 0.9
+            doc: Clear stair width (m).
+            category: Size
+            min: 0.8
+            max: 1.2
+            step: 0.01
+        slab_thickness:
+            default: 0.25
+            doc: Upper floor slab thickness (m).
+            category: Size
+            min: 0.15
+            max: 0.4
+            step: 0.01
+        layout:
+            default: quarter
+            doc: Straight, L (quarter turn) or U (half turn).
+            category: Layout
+            choices: [straight, quarter, half]
+        turn:
+            default: left
+            doc: Turn direction when climbing.
+            category: Layout
+            choices: [left, right]
+        turn_type:
+            default: winders
+            doc: Winder treads or a flat landing in the turn.
+            category: Layout
+            choices: [winders, landing]
+        stringer:
+            default: wood
+            doc: Wood boards or steel plates.
+            category: Construction
+            choices: [wood, steel]
+        risers:
+            default: closed
+            doc: Closed riser boards or open risers.
+            category: Construction
+            choices: [closed, open]
+        tread_thickness:
+            default: 0.04
+            doc: Tread thickness (m).
+            category: Construction
+            min: 0.03
+            max: 0.08
+            step: 0.005
+        nosing:
+            default: 0.03
+            doc: Tread overhang (m).
+            category: Construction
+            min: 0
+            max: 0.05
+            step: 0.005
+        wood:
+            default: oak
+            doc: Wood species.
+            category: Finish
+            choices: [oak, ash, walnut]
+        steel_color:
+            default: anthracite
+            doc: Colour of the steel parts.
+            category: Finish
+            choices: [anthracite, black, white, raw]
+        handrail:
+            default: one_side
+            doc: Handrail on the open side, both sides, or none.
+            category: Railing
+            choices: [none, one_side, both_sides]
+        balusters:
+            default: true
+            doc: Vertical bars under the handrails.
+            category: Railing
+        walls:
+            default: true
+            doc: Show the surrounding walls.
+            category: Context
+    assets:
+        # ── LAYOUT ── every part is built from this one record.
+        layout:
+            use:
+                import: ./assets/stairs/stair/layout.moon
+            with:
+                floor_height:
+                    param: floor_height
+                slab_thickness:
+                    param: slab_thickness
+                stair_width:
+                    param: stair_width
+                opening:
+                    param: opening
+                opening_length:
+                    param: opening_length
+                opening_width:
+                    param: opening_width
+                layout:
+                    param: layout
+                turn:
+                    param: turn
+                turn_type:
+                    param: turn_type
+                stringer:
+                    param: stringer
+                risers:
+                    param: risers
+                tread_thickness:
+                    param: tread_thickness
+                nosing:
+                    param: nosing
+
+        # ── FINISHES ── live material variants.
+        woodMaterial:
+            import: ./assets/stairs/materials/wood.moon
+        steelMaterial:
+            import: ./assets/stairs/materials/steel.moon
+        woodFinish:
+            variant: wood
+            cases:
+                oak:
+                    use:
+                        asset: woodMaterial
+                    with:
+                        species: oak
+                ash:
+                    use:
+                        asset: woodMaterial
+                    with:
+                        species: ash
+                walnut:
+                    use:
+                        asset: woodMaterial
+                    with:
+                        species: walnut
+        steelFinish:
+            variant: steel_color
+            cases:
+                anthracite:
+                    use:
+                        asset: steelMaterial
+                    with:
+                        finish: anthracite
+                black:
+                    use:
+                        asset: steelMaterial
+                    with:
+                        finish: black
+                white:
+                    use:
+                        asset: steelMaterial
+                    with:
+                        finish: white
+                raw:
+                    use:
+                        asset: steelMaterial
+                    with:
+                        finish: raw
+        stringerFinish:
+            match:
+                param: stringer
+            cases:
+                wood:
+                    asset: woodFinish
+                steel:
+                    asset: steelFinish
+
+        # ── PARTS ── raw geometry.
+        treads:
+            use:
+                import: ./assets/stairs/parts/treads.moon
+            with:
+                layout:
+                    asset: layout
+        risers:
+            use:
+                import: ./assets/stairs/parts/risers.moon
+            with:
+                layout:
+                    asset: layout
+        stringers:
+            use:
+                import: ./assets/stairs/parts/stringers.moon
+            with:
+                layout:
+                    asset: layout
+        newels:
+            use:
+                import: ./assets/stairs/parts/newels.moon
+            with:
+                layout:
+                    asset: layout
+        bolts:
+            use:
+                import: ./assets/stairs/parts/bolts.moon
+            with:
+                layout:
+                    asset: layout
+        riserBars:
+            use:
+                import: ./assets/stairs/parts/riserbars.moon
+            with:
+                layout:
+                    asset: layout
+        floors:
+            use:
+                import: ./assets/stairs/parts/floors.moon
+            with:
+                layout:
+                    asset: layout
+        walls:
+            use:
+                import: ./assets/stairs/parts/walls.moon
+            with:
+                layout:
+                    asset: layout
+        handrailPart:
+            import: ./assets/stairs/parts/handrail.moon
+        stairRaw:
+            group:
+              - asset: treads
+              - asset: risers
+              - asset: stringers
+              - asset: newels
+
+        # ── STAIR ── dressed and occlusion-baked (live finishes only, so the bake stays live).
+        stair:
+            pipe:
+              - group:
+                  - op: ApplyMaterial
+                    with:
+                        material:
+                            asset: woodFinish
+                    input:
+                        group:
+                          - asset: treads
+                          - asset: risers
+                  - op: ApplyMaterial
+                    with:
+                        material:
+                            asset: stringerFinish
+                    input:
+                        group:
+                          - asset: stringers
+                          - asset: newels
+                  - op: ApplyMaterial
+                    with:
+                        material:
+                            asset: steelFinish
+                    input:
+                        group:
+                          - asset: bolts
+                          - asset: riserBars
+              # 128 texels: the bake cost grows with the texel count; at 256 (the automatic pick)
+              # it took twice as long for a barely sharper map
+              - op: BakeOcclusion
+                with:
+                    occluder:
+                        group:
+                          - asset: floors
+                          - asset: walls
+                    strength: 0.85
+                    resolution: 128
+
+        # ── RAILING ── handrails, gallery, necks, brackets and balusters; switched live. The newel
+        # posts are structural (they carry the stringers) and belong to the stair, not the railing.
+        # The open side: the stair handrail, the necks that carry it on the turn newels, and the
+        # gallery railing on the upper floor.
+        openRail:
+            group:
+              - pipe:
+                  - group:
+                      - use:
+                            asset: handrailPart
+                        with:
+                            path:
+                                expression: |
+                                    assets.layout.innerRailPath
+                      - use:
+                            asset: handrailPart
+                        with:
+                            path:
+                                expression: |
+                                    assets.layout.galleryPath
+                  - op: ApplyMaterial
+                    with:
+                        material:
+                            asset: woodFinish
+              - op: ApplyMaterial
+                with:
+                    material:
+                        asset: stringerFinish
+                input:
+                    group:
+                      - use:
+                            import: ./assets/stairs/parts/gallery.moon
+                        with:
+                            layout:
+                                asset: layout
+                      - use:
+                            import: ./assets/stairs/parts/necks.moon
+                        with:
+                            layout:
+                                asset: layout
+        wallRail:
+            group:
+              - pipe:
+                  - use:
+                        asset: handrailPart
+                    with:
+                        path:
+                            expression: |
+                                assets.layout.wallRailPath
+                  - op: ApplyMaterial
+                    with:
+                        material:
+                            asset: woodFinish
+              - op: ApplyMaterial
+                with:
+                    material:
+                        asset: steelFinish
+                input:
+                    use:
+                        import: ./assets/stairs/parts/brackets.moon
+                    with:
+                        layout:
+                            asset: layout
+        balusterBars:
+            op: ApplyMaterial
+            with:
+                material:
+                    asset: steelFinish
+            input:
+                use:
+                    import: ./assets/stairs/parts/balusters.moon
+                with:
+                    bars:
+                        expression: |
+                            [...assets.layout.balusters, ...assets.layout.galleryBalusters]
+                    diameter:
+                        expression: |
+                            assets.layout.dims.balD
+        railing:
+            variant: handrail
+            cases:
+                none:
+                    empty: MESHES
+                one_side:
+                    group:
+                      - asset: openRail
+                      - toggle: balusters
+                        input:
+                            asset: balusterBars
+                both_sides:
+                    group:
+                      - asset: openRail
+                      # the wall rail is fixed to the wall: it shows only with the walls
+                      - toggle: walls
+                        input:
+                            asset: wallRail
+                      - toggle: balusters
+                        input:
+                            asset: balusterBars
+
+        # ── CONTEXT ── floors and walls, each baked against the stair.
+        floorsBaked:
+            op: BakeOcclusion
+            with:
+                occluder:
+                    group:
+                      - asset: stairRaw
+                      - asset: walls
+                strength: 0.85
+                resolution: 128
+            input:
+                asset: floors
+        wallsBaked:
+            op: BakeOcclusion
+            with:
+                occluder:
+                    group:
+                      - asset: stairRaw
+                      - asset: floors
+                strength: 0.85
+                resolution: 128
+            input:
+                asset: walls
+
+        # ── READOUT ── the rule checks, measured on the raw (undressed) geometry; the railing line
+        # follows the live handrail and baluster switches.
+        readout:
+            use:
+                import: ./assets/stairs/parts/readout.moon
+            with:
+                layout:
+                    asset: layout
+                treads:
+                    asset: treads
+                floors:
+                    asset: floors
+                handrail:
+                    param: handrail
+                balusters:
+                    param: balusters
+
+    render:
+        group:
+          - asset: stair
+          - asset: railing
+          - asset: floorsBaked
+          - toggle: walls
+            input:
+                asset: wallsBaked
+          - asset: readout
+assets/stairs/lib/boards.moon: |
+    moon: "1.0"
+    doc: |
+        Board builder: turns a list of planar outlines into solid boards with rounded
+        (routed) edges and wood-grain UVs. One mesh per board, all in one MESHES group;
+        an empty list gives an empty asset.
+
+        Each part record:
+          pts     outline in the board's own 2D frame [[x, y], ...] (any winding, may be non-convex)
+          o       frame origin [x, y, z] (world)
+          e1, e2  frame axes (world unit vectors); the board is extruded along e3 = e1 × e2
+          z0, z1  extrusion range along e3
+          r       edge radius of both outline faces (0 = sharp)
+          strip   true when pts is a bottom chain followed by a top chain of equal length,
+                  both running along +x (stringer profiles) — triangulated as a strip
+          uvU, uvV, uvO   texture mapping: u = dot([x, y, z], uvU) + uvO[0], v likewise
+
+        Only the outlines are handled point by point (cleaning, winding, face triangulation); the
+        rings of the rounded edges, the side walls, the frames and the UVs of all boards are
+        computed together as tensors (per-vertex script loops are slow, tensor operations are not).
+    params:
+        parts: []
+        segments: 3
+    assets:
+        built:
+            expression: |
+                const seg = params.segments
+                const sub = (a, b) => [a[0] - b[0], a[1] - b[1]]
+                const len = a => Math.hypot(a[0], a[1])
+                const unit = a => { const l = len(a) || 1; return [a[0] / l, a[1] / l] }
+                const area = p => p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1] }, 0) / 2
+                const cross3 = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+                // drop repeated and collinear vertices (outline only; strips keep their pairing)
+                const clean = pts => {
+                    let p = pts.filter((a, i) => len(sub(a, pts[(i + 1) % pts.length])) > 1e-6)
+                    let changed = true
+                    while (changed && p.length > 3) {
+                        changed = false
+                        for (let i = 0; i < p.length; i++) {
+                            const a = p[(i - 1 + p.length) % p.length], b = p[i], c = p[(i + 1) % p.length]
+                            if (Math.abs(cross3(a, b, c)) < 1e-9 * Math.max(1e-6, len(sub(c, a)))) { p.splice(i, 1); changed = true; break }
+                        }
+                    }
+                    return p
+                }
+
+                // ear clipping for a counter-clockwise simple polygon
+                const inTri = (p, a, b, c) => cross3(a, b, p) > 1e-12 && cross3(b, c, p) > 1e-12 && cross3(c, a, p) > 1e-12
+                const earClip = poly => {
+                    const idx = poly.map((_, i) => i), tris = []
+                    let guard = 0
+                    while (idx.length > 3 && guard++ < 4 * poly.length + 10) {
+                        let cut = -1
+                        for (let k = 0; k < idx.length && cut < 0; k++) {
+                            const i0 = idx[(k - 1 + idx.length) % idx.length], i1 = idx[k], i2 = idx[(k + 1) % idx.length]
+                            if (cross3(poly[i0], poly[i1], poly[i2]) <= 1e-14) continue
+                            if (idx.some(j => j !== i0 && j !== i1 && j !== i2 && inTri(poly[j], poly[i0], poly[i1], poly[i2]))) continue
+                            cut = k
+                        }
+                        if (cut < 0) cut = 0
+                        tris.push([idx[(cut - 1 + idx.length) % idx.length], idx[cut], idx[(cut + 1) % idx.length]])
+                        idx.splice(cut, 1)
+                    }
+                    if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]])
+                    return tris
+                }
+
+                // ---- outlines, one board at a time: cleaned, counter-clockwise, face triangles. Boards
+                // are batched by ring count (rounded or sharp edges).
+                const groups = {}
+                params.parts.forEach((part, idx) => {
+                    const strip = part.strip === true
+                    let pts = part.pts.map(a => [a[0], a[1]])
+                    if (!strip) pts = clean(pts)
+                    if (area(pts) < 0) pts.reverse()
+                    const n = pts.length, z0 = part.z0, z1 = part.z1
+                    const r = Math.max(0, Math.min(part.r ?? 0, (z1 - z0) / 2 - 1e-5))
+                    const R = r > 1e-6 ? 2 * seg + 2 : 2
+                    let cap = []
+                    if (strip) for (let i = 0; i < n / 2 - 1; i++) cap.push([i, i + 1, n - 2 - i], [i, n - 2 - i, n - 1 - i])
+                    else {
+                        // the faces are triangulated on the outline inset by the edge radius, as they are built
+                        const d = R > 2 ? r : 0
+                        const dirs = pts.map((a, i) => unit(sub(pts[(i + 1) % n], a)))
+                        cap = earClip(d > 0 ? pts.map((a, i) => {
+                            const da = dirs[(i - 1 + n) % n], db = dirs[i]
+                            const k = Math.max(0.3, 1 + da[0] * db[0] + da[1] * db[1])
+                            return [a[0] + (-da[1] - db[1]) * d / k, a[1] + (da[0] + db[0]) * d / k]
+                        }) : pts)
+                    }
+                    const g = groups[R] ?? (groups[R] = { R, P: [], next: [], prev: [], pid: [], parts: [], zr: [], mx: [], my: [], mz: [], mo: [] })
+                    const off = g.P.length, k = g.parts.length
+                    pts.forEach((p, i) => { g.P.push(p); g.next.push(off + (i + 1) % n); g.prev.push(off + (i - 1 + n) % n); g.pid.push(k) })
+                    const e1 = part.e1, e2 = part.e2, o = part.o
+                    const e3 = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
+                    const U = part.uvU ?? [1, 0, 0], V = part.uvV ?? [0, 1, 0], O = part.uvO ?? [0, 0]
+                    g.parts.push({ idx, off, n, cap })
+                    g.zr.push([z0, z1, r])
+                    // local (x, y, z) → world [X, Y, Z] and texture [u, v], as one affine map per board
+                    g.mx.push([e1[0], e1[1], e1[2], U[0], V[0]])
+                    g.my.push([e2[0], e2[1], e2[2], U[1], V[1]])
+                    g.mz.push([e3[0], e3[1], e3[2], U[2], V[2]])
+                    g.mo.push([o[0], o[1], o[2], O[0], O[1]])
+                })
+
+                // ---- all boards of a batch at once: [Nv, ...] tensors over the outline vertices --------
+                const meshes = new Array(params.parts.length)
+                Object.values(groups).forEach(g => {
+                    const R = g.R, S = 2 * R + 2, Nv = g.P.length     // per outline vertex: (a, b) on each ring, top, bottom
+                    const col = t => Reshape({ input: t, newShape: [Nv, 1] })
+                    const pid = Data(g.pid), next = Data(g.next)
+                    const per = a => Gather({ input: Data(a), indices: pid })     // a board attribute per outline vertex
+                    // rings from the bottom face edge to the top face edge: inset d = r·D, height
+                    // z = z0·A + z1·B + r·C, normal (radial NR, axial NZ)
+                    const prof = R > 2
+                        ? [...Array.from({ length: seg + 1 }, (_, i) => { const a = Math.PI / 2 * (1 - i / seg); return [1, 0, 1 - Math.sin(a), 1 - Math.cos(a), Math.cos(a), -Math.sin(a)] }),
+                           ...Array.from({ length: seg + 1 }, (_, i) => { const a = Math.PI / 2 * i / seg; return [0, 1, Math.sin(a) - 1, 1 - Math.cos(a), Math.cos(a), Math.sin(a)] })]
+                        : [[1, 0, 0, 0, 1, 0], [0, 1, 0, 0, 1, 0]]
+                    const pc = j => Reshape({ input: Data(prof.map(q => q[j])), newShape: [1, R] })
+                    // edge directions; the inset direction at each vertex bisects its two edge normals
+                    const Pt = Data(g.P)
+                    const D = Gather({ input: Pt, indices: next }) - Pt
+                    const dir = D / col(Maximum({ input: Norm({ input: D, axis: 1 }), other: 1e-300 }))
+                    const [dx, dy] = Split({ input: dir, axis: 1 })
+                    const [px, py] = Split({ input: Gather({ input: dir, indices: Data(g.prev) }), axis: 1 })
+                    const kk = Maximum({ input: px * dx + py * dy + 1, other: 0.3 })
+                    const [zr0, zr1, zrr] = Split({ input: per(g.zr), axis: 1 }).map(col)
+                    const d = zrr * pc(3), z = zr0 * pc(0) + zr1 * pc(1) + zrr * pc(2)       // [Nv, R]
+                    const [x0, y0] = Split({ input: Pt, axis: 1 })
+                    const ax = col(x0) + col((-py - dy) / kk) * d, ay = col(y0) + col((px + dx) / kk) * d
+                    const bx = Gather({ input: ax, indices: next }), by = Gather({ input: ay, indices: next })
+                    const nr = pc(4), nzs = Zeros({ shape: [Nv, R] }) + pc(5)
+                    const sideP = StackAxis({ input: [StackAxis({ input: [ax, ay, z], axis: 2 }), StackAxis({ input: [bx, by, z], axis: 2 })], axis: 2 })
+                    const sn = StackAxis({ input: [col(dy) * nr, col(-dx) * nr, nzs], axis: 2 })
+                    const sideN = StackAxis({ input: [sn, sn], axis: 2 })                    // [Nv, R, 2, 3]
+                    const ring = (t, i) => Gather({ input: t, indices: Data([i]), axis: 1 })   // [Nv, 1]
+                    const capP = i => StackAxis({ input: [ring(ax, i), ring(ay, i), ring(z, i)], axis: 2 })
+                    const z1s = Zeros({ shape: [Nv, 1] })
+                    const capN = s => StackAxis({ input: [z1s, z1s, z1s + s], axis: 2 })
+                    const T = t => Transpose({ input: t, permutation: [1, 0, 2] })
+                    const join = (side, top, bot) => T(Group([T(Reshape({ input: side, newShape: [Nv, 2 * R, 3] })), T(top), T(bot)]))
+                    const L = join(sideP, capP(R - 1), capP(0)), Nl = join(sideN, capN(1), capN(-1))      // [Nv, S, 3]
+                    // into the world frame, with the grain UVs
+                    const sp = t => Split({ input: t, axis: 2 }).map(c => Reshape({ input: c, newShape: [Nv, S, 1] }))
+                    const v5 = a => Reshape({ input: per(a), newShape: [Nv, 1, 5] })
+                    const [lx, ly, lz] = sp(L), [nx, ny, nz] = sp(Nl)
+                    const out = Reshape({ input: v5(g.mo) + lx * v5(g.mx) + ly * v5(g.my) + lz * v5(g.mz), newShape: [Nv * S, 5] })
+                    const nw = Reshape({ input: nx * v5(g.mx) + ny * v5(g.my) + nz * v5(g.mz), newShape: [Nv * S, 5] })
+                    const Vt = Gather({ input: out, indices: Data([0, 1, 2]), axis: 1 }), UVt = Gather({ input: out, indices: Data([3, 4]), axis: 1 })
+                    const Nt = Gather({ input: nw, indices: Data([0, 1, 2]), axis: 1 })
+                    // side walls: two triangles per edge and ring step; faces from the outline triangles
+                    const pat = []
+                    for (let k = 1; k < R; k++) pat.push([2 * k - 2, 2 * k - 1, 2 * k + 1], [2 * k - 2, 2 * k + 1, 2 * k])
+                    const sideT = Reshape({ input: Range({ count: Nv }) * S, newShape: [Nv, 1, 1] }) + Reshape({ input: Data(pat), newShape: [1, pat.length, 3] })
+                    const top = 2 * R
+                    g.parts.forEach(p => {
+                        const v0 = p.off * S, v1 = (p.off + p.n) * S
+                        const side = Reshape({ input: sideT.slice(p.off, p.off + p.n), newShape: [p.n * pat.length, 3] }) - v0
+                        const caps = p.cap.flatMap(([a, b, c]) => [[a * S + top, b * S + top, c * S + top], [a * S + top + 1, c * S + top + 1, b * S + top + 1]])
+                        meshes[p.idx] = Mesh({ vertices: Vt.slice(v0, v1), normals: Nt.slice(v0, v1), materialUVs: UVt.slice(v0, v1),
+                            triangles: caps.length ? Group([side, Data(caps)]) : side })
+                    })
+                })
+                return Group(meshes)
+            produces: MESHES
+    render:
+        if:
+            expression: |
+                params.parts.length > 0
+        then:
+            asset: built
+        else:
+            empty: MESHES
+assets/stairs/materials/context.moon: |
+    moon: "1.0"
+    doc: |
+        Finishes of the building around the stair: painted plaster (walls, ceiling, opening
+        edges), the warm dark grey of section-cut faces, a light honed limestone floor (0.60 m
+        tiles; one texture tile = 1.20 m, UVs in metres / 1.20), and the red of a clash zone
+        (translucent) and its cut edges (opaque). Constant colours are linear; the stone
+        texture holds display (sRGB) values.
+    params:
+        surface:
+            default: plaster
+            choices: [plaster, section, stone, clash, clashEdge]
+            doc: Which finish.
+    assets:
+        # ── STONE ── 2 × 2 tiles per texture tile: a tone per stone, soft mottling, fine grain
+        # and 1 px joints on the tile edges (a texture seam always falls on a joint).
+        stoneTexture:
+            expression: |
+                const N = 256, h = N / 2
+                const [x, y] = Coords({ shape: [N, N] })
+                const tx = Floor(x / h), ty = Floor(y / h)
+                const tone = tx * 0.022 - ty * 0.018 + tx * ty * 0.014 - 0.006
+                const mottle = (Noise({ shape: [N, N], seed: 21, scale: 3, type: "fbm" }) - 0.5) * 0.06
+                const grain = (Noise({ shape: [N, N], seed: 22, scale: 40, type: "fbm", octaves: 2 }) - 0.5) * 0.025
+                const joint = Maximum({ input: 1 - Minimum({ input: x % h, other: 1 }), other: 1 - Minimum({ input: y % h, other: 1 }) })
+                const shade = Reshape({ input: (tone + mottle + grain) * (1 - joint) - joint * 0.16, newShape: [N, N, 1] })
+                return Image(Clamp({ input: Data([0.80, 0.775, 0.725]) + shade }))
+            produces: IMAGE
+    render:
+        match:
+            param: surface
+        cases:
+            plaster:
+                op: Material
+                with:
+                    color: [0.72, 0.705, 0.67, 1]
+                    roughness: 0.95
+            section:
+                op: Material
+                with:
+                    color: [0.075, 0.071, 0.066, 1]
+                    roughness: 0.9
+            stone:
+                op: Material
+                with:
+                    color:
+                        asset: stoneTexture
+                    roughnessFactor: 0.6
+            clash:
+                op: Material
+                with:
+                    color: [0.92, 0.06, 0.03, 0.4]
+                    roughness: 0.5
+                    emissive: [0.3, 0.01, 0]
+            clashEdge:
+                op: Material
+                with:
+                    color: [0.78, 0.05, 0.03, 1]
+                    roughness: 0.6
+                    emissive: [0.22, 0.01, 0]
+assets/stairs/materials/steel.moon: |
+    moon: "1.0"
+    doc: |
+        Steel finish for stringers, balusters, posts and fixings: powder-coated colours or
+        raw (clear-lacquered) steel. Colour values are linear.
+    params:
+        finish:
+            default: anthracite
+            choices: [anthracite, black, white, raw]
+            doc: Steel finish.
+    render:
+        match:
+            param: finish
+        cases:
+            anthracite:
+                op: Material
+                with:
+                    color: [0.042, 0.047, 0.054, 1]
+                    roughness: 0.48
+            black:
+                op: Material
+                with:
+                    color: [0.011, 0.011, 0.012, 1]
+                    roughness: 0.42
+            white:
+                op: Material
+                with:
+                    color: [0.78, 0.79, 0.77, 1]
+                    roughness: 0.42
+            raw:
+                op: Material
+                with:
+                    color: [0.55, 0.56, 0.57, 1]
+                    roughness: 0.33
+                    metallic: 1
+assets/stairs/materials/wood.moon: |
+    moon: "1.0"
+    doc: |
+        Oiled plain-sawn hardwood as a procedural, seamless texture: flame figure, ring
+        variation, open-grain pores and board-scale tone drift, all generated from noise.
+        The grain runs along U; one tile covers 1.2 m along the grain and 0.3 m across
+        (the board builder writes UVs in those units). The noise fields do not depend on the
+        species, so all species share one computation.
+    params:
+        species:
+            default: oak
+            choices: [oak, ash, walnut]
+            doc: Wood species.
+        size: [256, 1024]
+    assets:
+        # Colours are display (sRGB) values, packed byte-exact as a colour texture.
+        look:
+            match:
+                param: species
+            cases:
+                oak:
+                    value: { light: [0.80, 0.66, 0.47], dark: [0.56, 0.41, 0.25], rings: 12, flame: 9, pores: 0.5, tone: 0.45, rough: 0.55 }
+                ash:
+                    value: { light: [0.88, 0.80, 0.66], dark: [0.68, 0.56, 0.40], rings: 10, flame: 7, pores: 0.42, tone: 0.35, rough: 0.5 }
+                walnut:
+                    value: { light: [0.47, 0.32, 0.22], dark: [0.27, 0.17, 0.11], rings: 14, flame: 10, pores: 0.3, tone: 0.6, rough: 0.45 }
+
+        # ── GRAIN FIELDS ── seamless noise, stretched along the grain; [H, W] tensors in ±0.5.
+        fields:
+            expression: |
+                const [H, W] = params.size
+                // seamless noise [h, w]: cross-fade the four quadrants of a [2h, 2w] field
+                const tileNoise = (h, w, seed, scale, octaves) => {
+                    const M = Noise({ shape: [2 * h, 2 * w], seed, scale, type: "fbm", octaves })
+                    const top = M.slice(0, h), bot = M.slice(h, 2 * h)
+                    const left = r => Gather({ input: r, indices: Range({ count: w }), axis: 1 })
+                    const right = r => Gather({ input: r, indices: Range({ count: w, start: w }), axis: 1 })
+                    const [x, y] = Coords({ shape: [h, w] })
+                    const wx = x / w, wy = y / h
+                    const f = (1 - wx) * (1 - wy) * right(bot) + wx * (1 - wy) * left(bot)
+                        + (1 - wx) * wy * right(top) + wx * wy * left(top)
+                    return (f - Mean(f)) / (Max(f) - Min(f) + 1e-6)
+                }
+                // features stretched s times along the grain: noise on a narrow grid, resampled to [H, W]
+                const stretched = (s, seed, scale, octaves) => {
+                    const img = Resize({ input: Image(tileNoise(H, W / s, seed, scale, octaves) + 0.5), size: [H, W] })
+                    return Reshape({ input: img.values, newShape: [H, W] }) - 0.5
+                }
+                return {
+                    flame: stretched(16, 11, 3, 3),     // long meanders → cathedral figure
+                    wobble: stretched(8, 12, 6, 4),     // ring-width variation
+                    tone: stretched(16, 13, 2, 2),      // board-scale colour drift
+                    pores: stretched(64, 14, 24, 2),    // open-grain streaks
+                }
+
+        texture:
+            expression: |
+                const [H, W] = params.size, lk = assets.look, f = assets.fields
+                const [x, y] = Coords({ shape: [H, W] })
+                const rings = y / H * lk.rings + f.flame * lk.flame + f.wobble * 2.5
+                const band = rings - Floor(rings)
+                const late = Smoothstep({ input: band, edge0: 0.45, edge1: 0.92 }) * (1 - Smoothstep({ input: band, edge0: 0.94, edge1: 1 }))
+                const pore = Smoothstep({ input: f.pores, edge0: 0.12, edge1: 0.3 }) * (0.4 + 0.6 * late)
+                const t = Clamp({ input: late * 0.75 + pore * lk.pores + f.tone * lk.tone + 0.12, min: 0, max: 1 })
+                return Image(Mix({ input: Data(lk.light), target: Data(lk.dark), t: Reshape({ input: t, newShape: [H, W, 1] }) }))
+            produces: IMAGE
+    render:
+        op: Material
+        with:
+            color:
+                asset: texture
+            roughnessFactor:
+                expression: |
+                    assets.look.rough
+assets/stairs/parts/balusters.moon: |
+    moon: "1.0"
+    doc: |
+        Balusters: round steel bars, one 12-sided bar per entry, built as one computed mesh.
+        The layout spaces them ≤ 0.12 m centre to centre (clear gap < 0.12 m) between the
+        posts of the stair and the gallery railing.
+    params:
+        bars:
+            default:
+                value:
+                  - { p: [0, 0], y0: 0, y1: 0.9 }
+                  - { p: [0.12, 0], y0: 0.05, y1: 0.95 }
+            doc: |
+                Bars as records with plan position p = [x, z], bottom y0 and top y1, in metres.
+        diameter: 0.014
+    assets:
+        mesh:
+            expression: |
+                const r = params.diameter / 2, k = 12
+                const verts = [], norms = [], tris = []
+                const ring = Range({ count: k }).map(i => [Math.cos(2 * Math.PI * i / k), Math.sin(2 * Math.PI * i / k)])
+                params.bars.forEach(b => {
+                    const [x, z] = b.p, base = verts.length
+                    ring.forEach(([c, s]) => {
+                        verts.push([x + r * c, b.y0, z + r * s], [x + r * c, b.y1, z + r * s])
+                        norms.push([c, 0, s], [c, 0, s])
+                    })
+                    for (let i = 0; i < k; i++) {
+                        const a = base + 2 * i, n = base + 2 * ((i + 1) % k)
+                        tris.push([a, a + 1, n + 1], [a, n + 1, n])
+                    }
+                })
+                return Mesh({ vertices: verts, triangles: tris, normals: norms })
+            produces: MESHES
+    render:
+        if:
+            expression: |
+                params.bars.length > 0
+        then:
+            asset: mesh
+        else:
+            empty: MESHES
+assets/stairs/parts/bolts.moon: |
+    moon: "1.0"
+    doc: |
+        Fixings of the steel stringers: a 40 × 6 mm flat bar welded to each plate under every
+        tread end, which carries the tread (screwed from below), and hexagon bolt heads on the
+        open-side plate where the treads are bolted through, one or two per tread. Empty for
+        wood stringers.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+        heads:
+            expression: |
+                const byDir = new Map()
+                params.layout.bolts.forEach(b => {
+                    const key = `${b.n[0].toFixed(4)},${b.n[1].toFixed(4)}`
+                    if (!byDir.has(key)) byDir.set(key, { n: b.n, at: [] })
+                    byDir.get(key).at.push(b.p)
+                })
+                return Group([...byDir.values()].map(g => Place({
+                    input: Transform({
+                        input: Cylinder({ radiusLow: 0.0085, height: 0.006, resolution: 6, anchor: [0.5, 0, 0.5] }),
+                        rotate: [90, Math.atan2(g.n[0], g.n[1]) * 180 / Math.PI, 0],
+                    }),
+                    positions: g.at,
+                })))
+            produces: MESHES
+        supports:
+            use:
+                asset: boards
+            with:
+                parts:
+                    expression: |
+                        params.layout.supports
+    render:
+        if:
+            expression: |
+                params.layout.bolts.length > 0
+        then:
+            group:
+              - asset: heads
+              - asset: supports
+        else:
+            empty: MESHES
+assets/stairs/parts/brackets.moon: |
+    moon: "1.0"
+    doc: |
+        Wall-handrail brackets: a round wall rosette with its fixing, a horizontal arm out to
+        the rail line and a short stem up into the rail, about every metre along the rail.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    render:
+        expression: |
+            const rr = params.layout.dims.rr
+            return Group(params.layout.brackets.flatMap(b => {
+                const [x, y, z] = b.p, [nx, nz] = b.n, g = b.gap
+                const yaw = Math.atan2(nx, nz) * 180 / Math.PI, armY = y - 0.075
+                const along = (len, rad, at) => Transform({
+                    input: Cylinder({ radiusLow: rad, height: len, resolution: 16 }),
+                    rotate: [90, yaw, 0], translate: at,
+                })
+                return [
+                    along(0.012, 0.03, [x + nx * (g - 0.006), armY, z + nz * (g - 0.006)]),
+                    along(g, 0.0065, [x + nx * g / 2, armY, z + nz * g / 2]),
+                    Transform({ input: Cylinder({ radiusLow: 0.0065, height: 0.075 - rr + 0.004, resolution: 16, anchor: [0.5, 0, 0.5] }), translate: [x, armY, z] }),
+                ]
+            }))
+        produces: MESHES
+assets/stairs/parts/floors.moon: |
+    moon: "1.0"
+    doc: |
+        Context floors as a clean architectural cutaway: the lower floor plate and the upper slab
+        with the stairwell opening, cut at the same planes as the walls. Limestone floor on both
+        levels; plaster ceiling and opening edges, with the 20 mm stone band of the floor finish
+        on top; the dark section colour on every cut face (also the slab's bearing ends inside
+        the walls, seen with the walls hidden). No face of the slab lies in a wall face: along a
+        wall the opening runs on into the wall, and where a wall ends on a cut plane the slab's
+        bearing stops 3 mm short. The slab top is notched (0.3 mm wider) for the arrival nosing
+        strip. When the headroom fails, the clash zone is cut out of the slab and shown as a
+        translucent red block with red cut edges, so no stair part runs through concrete.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        context:
+            import: ../materials/context.moon
+        stone:
+            use:
+                asset: context
+            with:
+                surface: stone
+        plaster:
+            use:
+                asset: context
+            with:
+                surface: plaster
+        section:
+            use:
+                asset: context
+            with:
+                surface: section
+        clash:
+            use:
+                asset: context
+            with:
+                surface: clash
+        clashEdge:
+            use:
+                asset: context
+            with:
+                surface: clashEdge
+
+        # ── LOWER FLOOR ── one plate under the whole box: stone on top, section faces elsewhere.
+        lower:
+            expression: |
+                const [x0, z0, x1, z1] = params.layout.ctx.box, y0 = -params.layout.dims.floorT, tile = 1.2
+                const quad = (pts, n) => ({ pts, n })
+                const sides = [
+                    quad([[x0, y0, z0], [x0, y0, z1], [x0, 0, z1], [x0, 0, z0]], [-1, 0, 0]),
+                    quad([[x1, y0, z1], [x1, y0, z0], [x1, 0, z0], [x1, 0, z1]], [1, 0, 0]),
+                    quad([[x1, y0, z0], [x0, y0, z0], [x0, 0, z0], [x1, 0, z0]], [0, 0, -1]),
+                    quad([[x0, y0, z1], [x1, y0, z1], [x1, 0, z1], [x0, 0, z1]], [0, 0, 1]),
+                    quad([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [0, -1, 0]),
+                ]
+                const top = quad([[x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0]], [0, 1, 0])
+                const mesh = (qs, material, uv) => {
+                    const vertices = [], normals = [], triangles = [], materialUVs = []
+                    qs.forEach(q => {
+                        const k = vertices.length
+                        q.pts.forEach(p => { vertices.push(p); normals.push(q.n); materialUVs.push([p[0] / tile, p[2] / tile]) })
+                        triangles.push([k, k + 1, k + 2], [k, k + 2, k + 3])
+                    })
+                    return Mesh(uv ? { vertices, normals, triangles, materialUVs, material } : { vertices, normals, triangles, material })
+                }
+                return Group([mesh([top], assets.stone, true), mesh(sides, assets.section, false)])
+            produces: MESHES
+
+        # ── UPPER SLAB ── three extruded layers (stone band, notch depth, core) re-faced by role:
+        # stone on top and on the opening-edge band, plaster soffit and opening edges, section on the
+        # cut planes and bearing ends, red along a clash cut; faces between layers are dropped.
+        slab:
+            expression: |
+                const L = params.layout, c = L.ctx, H = L.H, T = L.slabT, fT = L.dims.finishT, tt = L.dims.tt
+                const tile = 1.2, eps = 3e-4
+                const strip = L.treadInfo[L.treadInfo.length - 1].outline
+                const rect = ([x0, z0, x1, z1]) => Polygon({ points: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] })
+                const opened = rect(c.slab) - Union([rect(c.openingExt), ...c.recesses.map(rect)])
+                const base = c.clash.length ? opened - Union(c.clash.map(q => Polygon({ points: q }))) : opened
+                // the notch is 0.3 mm wider than the strip, so the two top faces never overlap
+                const finish = base - Offset({ input: Polygon({ points: strip }), delta: 0.0003, joinType: "miter" })
+                const on = (v, a) => Math.abs(v - a) < eps
+                const within = (v, a, b) => v > a - eps && v < b + eps
+                const onRect = ([x, z], [x0, z0, x1, z1]) => ((on(x, x0) || on(x, x1)) && within(z, z0, z1)) || ((on(z, z0) || on(z, z1)) && within(x, x0, x1))
+                const segDist = (p, a, b) => {
+                    const e = [b[0] - a[0], b[1] - a[1]], l2 = e[0] * e[0] + e[1] * e[1] || 1e-12
+                    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * e[0] + (p[1] - a[1]) * e[1]) / l2))
+                    return Math.hypot(p[0] - a[0] - t * e[0], p[1] - a[1] - t * e[1])
+                }
+                const onStrip = p => strip.some((a, i) => segDist(p, a, strip[(i + 1) % strip.length]) < 1e-3)
+                const out = { stone: [], plaster: [], section: [], clash: [] }
+                const layers = [[finish, H - fT, H, "finish"], [finish, H - tt, H - fT, "mid"], [base, H - T, H - tt, "core"]]
+                layers.forEach(([poly, y0, y1, role]) => {
+                    Extrude({ input: poly, height: y1 - y0 }).meshes.forEach(m => {
+                        const V = m.vertices, Tr = m.triangles
+                        for (let t = 0; t < m.triangleCount; t++) {
+                            const P = [0, 1, 2].map(k => { const v = V[Tr[t][k]]; return [v[0], v[1] + y0, v[2]] })
+                            const u = [P[1][0] - P[0][0], P[1][1] - P[0][1], P[1][2] - P[0][2]], w = [P[2][0] - P[0][0], P[2][1] - P[0][1], P[2][2] - P[0][2]]
+                            const nr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]
+                            const nl = Math.hypot(nr[0], nr[1], nr[2])
+                            if (nl < 1e-12) continue
+                            const nrm = nr.map(x => x / nl)
+                            if (nrm[1] > 0.9) { if (role === "finish") out.stone.push([P, nrm]); continue }
+                            if (nrm[1] < -0.9) { if (role === "core") out.plaster.push([P, nrm]); continue }
+                            const xz = [(P[0][0] + P[1][0] + P[2][0]) / 3, (P[0][2] + P[1][2] + P[2][2]) / 3]
+                            const key = onRect(xz, c.slab) || c.recesses.some(r => onRect(xz, r)) ? "section"
+                                : onRect(xz, c.openingExt) || onStrip(xz) ? (role === "finish" ? "stone" : "plaster")
+                                : "clash"
+                            out[key].push([P, nrm])
+                        }
+                    })
+                })
+                const mesh = (tris, material, uv) => {
+                    const vertices = [], normals = [], triangles = [], materialUVs = []
+                    tris.forEach(([P, nrm]) => {
+                        const k = vertices.length
+                        P.forEach(p => {
+                            vertices.push(p); normals.push(nrm)
+                            materialUVs.push(Math.abs(nrm[1]) > 0.5 ? [p[0] / tile, p[2] / tile] : [(p[0] + p[2]) / tile, p[1] / tile])
+                        })
+                        triangles.push([k, k + 1, k + 2])
+                    })
+                    return Mesh(uv ? { vertices, normals, triangles, materialUVs, material } : { vertices, normals, triangles, material })
+                }
+                return Group([
+                    [out.stone, assets.stone, true], [out.plaster, assets.plaster, false],
+                    [out.section, assets.section, false], [out.clash, assets.clashEdge, false],
+                ].filter(([tris]) => tris.length).map(([tris, m, uv]) => mesh(tris, m, uv)))
+            produces: MESHES
+
+        # ── CLASH ZONE ── the part of the slab the stair's headroom needs, as a translucent red
+        # block set 2 mm inside the cut so none of its faces coincides with the slab or the stair.
+        clashZone:
+            expression: |
+                const L = params.layout, c = L.ctx, H = L.H, T = L.slabT
+                const rect = ([x0, z0, x1, z1]) => Polygon({ points: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] })
+                const opened = rect(c.slab) - Union([rect(c.openingExt), ...c.recesses.map(rect)])
+                const zone = Offset({ input: opened & Union(c.clash.map(q => Polygon({ points: q }))), delta: -0.002, joinType: "miter" })
+                return ApplyMaterial({
+                    input: Transform({ input: Extrude({ input: zone, height: T - 0.004 }), translate: [0, H - T + 0.002, 0] }),
+                    material: assets.clash,
+                })
+            produces: MESHES
+    render:
+        group:
+          - asset: lower
+          - asset: slab
+          - if:
+                expression: |
+                    params.layout.ctx.clash.length > 0
+            then:
+                asset: clashZone
+            else:
+                empty: MESHES
+assets/stairs/parts/gallery.moon: |
+    moon: "1.0"
+    doc: |
+        Gallery posts on the upper floor: capped posts at the corners of the railing that
+        runs from the stair's top newel along the free edges of the opening to the wall.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    [...params.layout.galleryParts, ...params.layout.galleryCaps]
+assets/stairs/parts/handrail.moon: |
+    moon: "1.0"
+    doc: |
+        A round handrail (Ø 45 mm) swept continuously along a 3D path — around the turn on
+        the open side, along the gallery, or along the walls with returns into the wall —
+        with wood-grain UVs running along the rail: u = distance along the path, v = angle
+        around the tube (mirrored, so the texture has no seam).
+    params:
+        path:
+            default: [[0, 0.9, 0], [0.6, 1.3, 0], [1.2, 1.7, 0.3], [1.5, 1.9, 0.8]]
+            doc: |
+                Centre-line points [x, y, z] in metres.
+        radius: 0.0225
+        grain: [1.2, 0.3]
+    assets:
+        tube:
+            op: Sweep
+            with:
+                path:
+                    param: path
+                resolution: 1
+            input:
+                op: Circle
+                with:
+                    radius:
+                        param: radius
+                    resolution: 20
+    render:
+        expression: |
+            // all per-vertex work is tensor math (a script loop over the vertices is slow)
+            const m = assets.tube.meshes[0], P = params.path, n = P.length
+            const V = m.vertices, nv = m.vertexCount
+            const col = t => Reshape({ input: t, newShape: [nv, 1] })
+            const dot = (a, b) => Sum({ input: a * b, axis: 1 })
+            // path segments: start, edge, squared length, arc length at the start
+            const seg = Range({ count: n - 1 })
+            const A = Gather({ input: P, indices: seg }), E = Gather({ input: P, indices: seg + 1 }) - A
+            const L2 = Maximum({ input: dot(E, E), other: 1e-12 })
+            let acc = 0
+            const cum = Data([0, ...Sqrt(L2).map(l => (acc += l))])
+            // nearest path point of every vertex, then the nearer of its two neighbouring segments
+            // (the earlier one on a tie) for a continuous arc-length coordinate
+            const d2 = Sum({ input: (Reshape({ input: V, newShape: [nv, 1, 3] }) - Reshape({ input: P, newShape: [1, n, 3] })) ** 2, axis: 2 })
+            const near = ArgMin({ input: d2, axis: 1 })
+            const onSeg = j => {
+                const a = Gather({ input: A, indices: j }), e = Gather({ input: E, indices: j }), l2 = Gather({ input: L2, indices: j })
+                const t = Clamp({ input: dot(V - a, e) / l2, min: 0, max: 1 })
+                const c = a + e * col(t)
+                return { c, e, l: Sqrt(l2), dd: dot(V - c, V - c), s: Gather({ input: cum, indices: j }) + t * Sqrt(l2) }
+            }
+            const p = onSeg(Clamp({ input: near - 1, min: 0, max: n - 2 })), q = onSeg(Clamp({ input: near, min: 0, max: n - 2 }))
+            const w = Step({ input: p.dd - q.dd, edge: 1e-300 }), W = col(w)
+            const c = p.c + (q.c - p.c) * W, e = p.e + (q.e - p.e) * W
+            const s = p.s + (q.s - p.s) * w, l = p.l + (q.l - p.l) * w
+            // angle from the top of the rail, mirrored left/right: no seam around the tube
+            const [tx, ty, tz] = Split({ input: e / col(l), axis: 1 })
+            const up = StackAxis({ input: [-ty * tx, 1 - ty * ty, -ty * tz], axis: 1 })
+            const rv = V - c
+            const len = t => Maximum({ input: Sqrt(dot(t, t)), other: 1e-12 })
+            const cosA = dot(rv, up) / (len(rv) * len(up))
+            const [Su, Sv] = params.grain, r = params.radius
+            const uvs = StackAxis({ input: [s / Su, Acos(Clamp({ input: cosA, min: -1, max: 1 })) * (r / Sv)], axis: 1 })
+            return Mesh({ ...m, materialUVs: uvs })
+        produces: MESHES
+assets/stairs/parts/necks.moon: |
+    moon: "1.0"
+    doc: |
+        Rail necks: the short turned posts (Ø 38 mm) that carry the continuous open-side handrail
+        on the caps of the turn newels. They belong to the railing — without a handrail there is
+        nothing to carry, so they go with it while the structural newels stay.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    params.layout.neckParts
+assets/stairs/parts/newels.moon: |
+    moon: "1.0"
+    doc: |
+        Newel posts — structural: the starting post anchors the open-side stringer to the floor,
+        the post at the top ties it to the slab edge, and a post in each inner corner of the turn
+        carries both stringers there (and the winders or the landing). Capped, chamfered square
+        sections; the start and top posts rise above the handrail, the turn posts stop under it
+        (the rail necks on their caps belong to the railing, see necks.moon). They stay when the
+        handrail is switched off.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    [...params.layout.newelParts, ...params.layout.newelCaps]
+assets/stairs/parts/readout.moon: |
+    moon: "1.0"
+    doc: |
+        Rule readout: a sign in front of the model listing the DIN 18065 checks with a green tick
+        or a red cross; failed rules are written in red, and a large verdict mark beside the title
+        is red when any fails.
+        Values are measured on the built geometry where possible — rises and open-riser gaps from
+        the tread meshes (and the riser bars), headroom from the slab mesh against the pitch
+        surface through the built tread nosings (a landing: its floor) — goings and winder widths
+        from the tread outlines the boards are cut from. The railing line and the title follow the
+        live handrail and baluster switches (no handrail or no balusters is flagged), so those
+        switches stay live.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+        treads:
+            use:
+                import: ./treads.moon
+        floors:
+            use:
+                import: ./floors.moon
+        handrail:
+            default: one_side
+            choices: [none, one_side, both_sides]
+            doc: Handrail on the open side only, on both sides, or none (the structural newel posts stay).
+        balusters:
+            default: true
+            doc: Vertical bars under the open-side handrail and the gallery rail (≤ 0.12 m apart).
+    assets:
+        # ── CHECKS ── measured values and their verdicts, one record per line (the railing line,
+        # which depends on the live switches, is built separately below).
+        checks:
+            expression: |
+                const L = params.layout, ru = L.rules, n = L.steps.n, d = L.dims
+                // lowest and highest point of a mesh (tensor min / max: no script loop over the vertices)
+                const span = m => { const y = Gather({ input: m.vertices, indices: [1], axis: 1 }); return [Min(y), Max(y)] }
+                const tm = params.treads.meshes.map(span)                      // n-1 treads + arrival strip
+                const tops = tm.map(s => s[1]), bots = tm.map(s => s[0])
+                const fl = params.floors.meshes.filter(m => m.vertexCount > 0).map(span)
+                const floorTop = Math.max(...fl.filter(s => s[1] < L.H / 2).map(s => s[1]))
+                const slabUnder = Math.min(...fl.filter(s => s[1] > L.H / 2).map(s => s[0]))
+                const rises = tops.map((t, i) => t - (i ? tops[i - 1] : floorTop))
+                const mean = a => a.reduce((s, v) => s + v, 0) / a.length
+                const R = mean(rises), dev = Math.max(...rises.map(r => Math.abs(r - R)))
+                const G = mean(L.goings), gDev = Math.max(...L.goings.map(g => Math.abs(g - G)))
+                const step = 2 * R + G
+
+                // headroom: the pitch surface between consecutive built nosings (each at its measured
+                // tread height), across the width; wherever it lies outside the opening (+1 mm) the
+                // clearance up to the measured slab underside counts. Along each of 9 lines across the
+                // width the exact exit point from the opening is found, so nothing falls between samples.
+                // A landing counts with its floor.
+                const [ox0, oz0, ox1, oz1] = L.opening, e = 1e-3
+                const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+                const outside = p => p[0] < ox0 - e || p[0] > ox1 + e || p[1] < oz0 - e || p[1] > oz1 + e
+                const lastOutside = (P, Q) => {
+                    const dx = Q[0] - P[0], dz = Q[1] - P[1]
+                    let t0 = 0, t1 = 1, ok = true
+                    const clip = (den, num) => {
+                        if (Math.abs(den) < 1e-15) { if (num < 0) ok = false; return }
+                        if (den > 0) t1 = Math.min(t1, num / den); else t0 = Math.max(t0, num / den)
+                    }
+                    clip(-dx, P[0] - (ox0 - e)); clip(dx, ox1 + e - P[0]); clip(-dz, P[1] - (oz0 - e)); clip(dz, oz1 + e - P[1])
+                    if (!ok || t0 > t1 || t1 < 1 - 1e-12) return 1
+                    return t0 > 1e-12 ? t0 : -1
+                }
+                let head = Infinity
+                for (let j = 0; j < n - 1; j++) {
+                    if (L.family === "B" && j === L.n1 - 1) continue
+                    const A = L.nosings[j], B = L.nosings[j + 1], ya = tops[j], yb = tops[j + 1]
+                    for (let v = 0; v <= 8; v++) {
+                        const u = lastOutside(lerp(A.a, A.b, v / 8), lerp(B.a, B.b, v / 8))
+                        if (u >= 0) head = Math.min(head, slabUnder - (ya + (yb - ya) * u))
+                    }
+                }
+                const land = L.treadInfo.findIndex(t => t.kind === "landing")
+                if (land >= 0 && L.treadInfo[land].outline.some(outside)) head = Math.min(head, slabUnder - tops[land])
+
+                // open risers: the clear gap between the tread below (the floor under the first riser)
+                // and the tread above (under the arrival strip the slab edge closes it from below the
+                // slab up), split by the riser bar where there is one
+                let gapMax = 0
+                if (!d.closed) for (let j = 0; j < n; j++) {
+                    const below = j ? tops[j - 1] : floorTop, above = j === n - 1 ? Math.min(bots[j], slabUnder) : bots[j]
+                    const bar = L.riserBars.find(b => b.below > below - 0.002 && b.below < below + 0.002)
+                    const gaps = bar ? [bar.a[1] - bar.d / 2 - below, above - (bar.a[1] + bar.d / 2)] : [above - below]
+                    gapMax = Math.max(gapMax, ...gaps)
+                }
+
+                const mm = v => (v * 1000).toFixed(1)
+                // two decimals, but never rounded up onto the limit when the value fails it
+                const metres = (v, lim) => (v < lim && Math.round(v * 100) / 100 >= lim ? Math.floor(v * 100) / 100 : v).toFixed(2)
+                const lines = [
+                    { text: `${n} risers × ${mm(R)} mm`, hint: "140–200 mm, equal", ok: R >= ru.riseMin - 1e-6 && R <= ru.riseMax + 1e-6 && dev < 0.001 },
+                    { text: `going ${mm(G)} mm on the walking line`, hint: "230–370 mm", ok: G >= ru.goingMin - 1e-4 && G <= ru.goingMax + 1e-4 && gDev < 0.001 },
+                    { text: `2R + G = ${(step * 1000).toFixed(0)} mm`, hint: "590–650 mm", ok: step >= ru.stepMin - 5e-4 && step <= ru.stepMax + 5e-4 },
+                    { text: head === Infinity ? "headroom: no slab above the stair" : `headroom ${metres(head, ru.headroomMin)} m`, hint: "≥ 2.00 m", ok: head >= ru.headroomMin - 1e-9 },
+                ]
+                if (L.winders) {
+                    const w = Math.min(...L.innerGoings)
+                    lines.push({ text: `narrowest winder ${mm(w)} mm`, hint: "≥ 100 mm", ok: w >= ru.winderInnerMin - 1e-4 })
+                }
+                if (L.landingDepth !== null) lines.push({ text: `landing ${L.landingDepth.toFixed(2)} m deep`, hint: `≥ width ${L.W.toFixed(2)} m`, ok: L.landingDepth >= L.W - 1e-4 })
+                if (!d.closed) lines.push({ text: `open risers: largest gap ${mm(gapMax)} mm${L.riserBars.length ? " (riser bars)" : ""}`, hint: "≤ 120 mm", ok: gapMax <= ru.openRiserGapMax + 1e-6 })
+                L.flags.forEach(f => lines.push({ text: f, hint: "", ok: false }))
+                // the opening comes first: auto reports the size it chose for this stair; an existing
+                // opening is red when the stair does not fit in it, with the size auto would need
+                const size = s => `${s[0].toFixed(2)} × ${s[1].toFixed(2)} m`, fits = lines.every(l => l.ok)
+                lines.unshift(L.openingAuto
+                    ? { text: `needs opening ${size(L.openingSize)}`, hint: `auto, headroom +${Math.round(L.openingReserve * 100)} cm`, ok: fits }
+                    : { text: `existing opening ${size(L.openingSize)}`, hint: fits ? "fits" : L.openingSuggest ? `auto: ${size(L.openingSuggest)}` : "too small", ok: fits })
+                const baluster = { text: `baluster gap ${mm(L.maxBalusterGap)} mm`, ok: L.maxBalusterGap <= ru.balusterGapMax }
+                return { lines, baluster, allOk: lines.every(l => l.ok) }
+
+        # ── SHEET ── the board: rows of text 2D (y down from the top); row 0 is the title, the
+        # static lines follow, the railing line comes last.
+        sheet:
+            expression: |
+                const rows = assets.checks.lines.length + 2, lh = 0.058, pad = 0.05
+                return { rows, lh, pad, w: 1.08, h: rows * lh + 2 * pad + 0.015, railRow: rows - 1 }
+
+        # ── ROW ── one line of the sign in panel space.
+        row:
+            doc: |
+                One line of the sign in panel space (board front at z = 0, top at y = height): a tick or
+                a cross, the text in white or red and a grey hint on the right; row 0 is the title.
+                Wraps Text, which an expression cannot call.
+            params:
+                text: "?"
+                ok: true
+                hint: " "
+                row: 1
+                height: 0.6
+            assets:
+                white:
+                    op: Material
+                    with:
+                        color: [0.86, 0.86, 0.84, 1]
+                        roughness: 0.5
+                red:
+                    op: Material
+                    with:
+                        color: [0.9, 0.05, 0.03, 1]
+                        roughness: 0.45
+                        emissive: [0.35, 0.01, 0]
+                green:
+                    op: Material
+                    with:
+                        color: [0.12, 0.62, 0.22, 1]
+                        roughness: 0.45
+                        emissive: [0, 0.12, 0.03]
+                grey:
+                    op: Material
+                    with:
+                        color: [0.42, 0.44, 0.47, 1]
+                        roughness: 0.5
+                # Text sets the line box top at the target; the baseline is ~0.84 em lower
+                words:
+                    op: Text
+                    with:
+                        text:
+                            param: text
+                        fontSize:
+                            expression: |
+                                params.row === 0 ? 0.042 : 0.037
+                        target:
+                            expression: |
+                                params.row === 0 ? [0, 0] : [0.057, params.row * 0.058 + 0.01]
+                hintText:
+                    op: Text
+                    with:
+                        text:
+                            param: hint
+                        fontSize: 0.027
+                        alignX: right
+                        target:
+                            expression: |
+                                [0.98, params.row * 0.058 + 0.01]
+                mark:
+                    expression: |
+                        const s = 0.032, base = params.row * 0.058 + 0.01 + 0.84 * 0.037
+                        const tick = [[0, 0.55], [0.16, 0.4], [0.38, 0.62], [0.84, 0.14], [1, 0.3], [0.38, 0.94]]
+                        const cross = [[0.15, 0], [0.5, 0.35], [0.85, 0], [1, 0.15], [0.65, 0.5], [1, 0.85], [0.85, 1], [0.5, 0.65], [0.15, 1], [0, 0.85], [0.35, 0.5], [0, 0.15]]
+                        return Polygon({ points: (params.ok ? tick : cross).map(([u, v]) => [u * s, base - s + v * s + 0.001]) })
+                    produces: POLYGONS
+            render:
+                expression: |
+                    // glyph outlines come finely tessellated: simplify to 0.4 mm (1 % of the letter
+                    // height) before extruding
+                    const raise = (polys, depth, mat) => ApplyMaterial({
+                        input: Transform({ input: Extrude({ input: Simplify({ input: polys, epsilon: 0.0004 }), height: depth }), rotate: [90, 0, 0] }),
+                        material: mat })
+                    const parts = [raise(assets.words, 0.002, params.ok ? assets.white : assets.red)]
+                    if (params.row > 0) parts.push(raise(assets.mark, 0.003, params.ok ? assets.green : assets.red))
+                    if (params.row > 0 && params.hint.trim()) parts.push(raise(assets.hintText, 0.002, assets.grey))
+                    return Transform({ input: Group(parts), translate: [0.05 - 0.54, params.height - 0.09, 0] })
+                produces: MESHES
+
+        # ── BADGE ── the overall verdict, a large tick or cross at the right end of the title row.
+        badge:
+            doc: |
+                The sign's overall verdict in panel space: a green tick or a red cross, 45 mm, at the
+                right end of the title row.
+            params:
+                ok: true
+                height: 0.6
+            render:
+                expression: |
+                    const s = 0.045, x0 = 0.98 - s
+                    const tick = [[0, 0.55], [0.16, 0.4], [0.38, 0.62], [0.84, 0.14], [1, 0.3], [0.38, 0.94]]
+                    const cross = [[0.15, 0], [0.5, 0.35], [0.85, 0], [1, 0.15], [0.65, 0.5], [1, 0.85], [0.85, 1], [0.5, 0.65], [0.15, 1], [0, 0.85], [0.35, 0.5], [0, 0.15]]
+                    const mark = Polygon({ points: (params.ok ? tick : cross).map(([u, v]) => [x0 + u * s, v * s]) })
+                    const mat = params.ok ? Material({ color: [0.12, 0.62, 0.22, 1], roughness: 0.45, emissive: [0, 0.12, 0.03] })
+                        : Material({ color: [0.9, 0.05, 0.03, 1], roughness: 0.45, emissive: [0.35, 0.01, 0] })
+                    return Transform({ input: ApplyMaterial({ input: Transform({ input: Extrude({ input: mark, height: 0.003 }), rotate: [90, 0, 0] }), material: mat }),
+                        translate: [0.05 - 0.54, params.height - 0.09, 0] })
+                produces: MESHES
+
+        # ── BOARD ── the dark board with the title and the static lines.
+        board:
+            expression: |
+                const c = assets.checks, sh = assets.sheet
+                const board = ApplyMaterial({ input: Box({ size: [sh.w, sh.h, 0.024], anchor: [0.5, 0, 1] }),
+                    material: Material({ color: [0.03, 0.032, 0.036, 1], roughness: 0.55 }) })
+                return Group([board, assets.row({ text: "STAIR CHECK · DIN 18065", ok: true, row: 0, height: sh.h }),
+                    ...c.lines.map((l, i) => assets.row({ text: l.text, ok: l.ok, hint: l.hint || " ", row: i + 1, height: sh.h }))])
+            produces: MESHES
+
+        # ── LIVE ROWS ── the verdict badge and the railing line, chosen by the live switches.
+        badgeStatic:
+            use:
+                asset: badge
+            with:
+                ok:
+                    expression: |
+                        assets.checks.allOk && assets.checks.baluster.ok
+                height:
+                    expression: |
+                        assets.sheet.h
+        badgeFail:
+            use:
+                asset: badge
+            with:
+                ok: false
+                height:
+                    expression: |
+                        assets.sheet.h
+        balusterRow:
+            use:
+                asset: row
+            with:
+                text:
+                    expression: |
+                        assets.checks.baluster.text
+                ok:
+                    expression: |
+                        assets.checks.baluster.ok
+                hint: ≤ 120 mm
+                row:
+                    expression: |
+                        assets.sheet.railRow
+                height:
+                    expression: |
+                        assets.sheet.h
+        openRailRow:
+            use:
+                asset: row
+            with:
+                text: "no balusters: the railing is open"
+                ok: false
+                hint: ≤ 120 mm
+                row:
+                    expression: |
+                        assets.sheet.railRow
+                height:
+                    expression: |
+                        assets.sheet.h
+        # the structural newel posts stay without a handrail, but they are no guard
+        noRailRow:
+            use:
+                asset: row
+            with:
+                text: no handrail or guard (newels only)
+                ok: false
+                hint: required
+                row:
+                    expression: |
+                        assets.sheet.railRow
+                height:
+                    expression: |
+                        assets.sheet.h
+        liveRows:
+            variant: handrail
+            cases:
+                none:
+                    group:
+                      - asset: badgeFail
+                      - asset: noRailRow
+            default:
+                variant: balusters
+                cases:
+                    "true":
+                        group:
+                          - asset: badgeStatic
+                          - asset: balusterRow
+                    "false":
+                        group:
+                          - asset: badgeFail
+                          - asset: openRailRow
+
+        # ── SIGN ── a lectern standing on the lower floor, inside the cutaway: the panel leans back
+        # 30° on a single post at table height. It stands where its whole footprint (board, post
+        # and base plate) lies on the floor plate, away from the walls, at least 0.15 m clear of
+        # every tread and stringer and out of the space in front of the first riser — the front-most
+        # such place, then the right-most, turned toward the front-right viewer where it fits.
+        place:
+            expression: |
+                const L = params.layout, sh = assets.sheet, ts = L.dims.ts
+                const [bx0, bz0, bx1, bz1] = L.box, m = 0.05
+                const sub = (a, b) => [a[0] - b[0], a[1] - b[1]]
+                const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k]
+                const unit = a => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l] }
+                // footprint in the sign's frame: the board (front face at z = 0.04 at its foot, leaning
+                // back over the post) and the base plate, plus 1 cm
+                const fx = sh.w / 2 + 0.01, fz0 = -(0.04 + 0.5 * sh.h + 0.03), fz1 = 0.06
+                // obstacles in plan: treads (stringers within clearStair), the walls, and the approach to
+                // the first riser (0.8 m deep, over the stair's full width)
+                const box2 = P => P.reduce((b, p) => [Math.min(b[0], p[0]), Math.min(b[1], p[1]), Math.max(b[2], p[0]), Math.max(b[3], p[1])], [Infinity, Infinity, -Infinity, -Infinity])
+                const n0 = L.nosings[0], n1 = L.nosings[1]
+                const e = unit(sub(n0.b, n0.a)), up = unit(sub(add(n1.a, n1.b), add(n0.a, n0.b)))
+                const A0 = add(n0.a, e, -(ts + 0.1)), B0 = add(n0.b, e, ts + 0.1)
+                const obstacles = [
+                    ...L.treadInfo.filter(t => t.kind !== "arrival").map(t => ({ P: t.outline, gap: ts + 0.15 })),
+                    ...L.ctx.walls.map(([x0, z0, x1, z1]) => ({ P: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]], gap: m })),
+                    { P: [A0, B0, add(B0, up, -0.8), add(A0, up, -0.8)], gap: 0.02 },
+                ].map(o => ({ ...o, bb: box2(o.P) }))
+                // scalar geometry (no allocations in the search's inner loops)
+                const inside = (px, pz, P) => {
+                    let w = false
+                    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+                        const a = P[i], b = P[j]
+                        if ((a[1] > pz) !== (b[1] > pz) && px < (b[0] - a[0]) * (pz - a[1]) / (b[1] - a[1]) + a[0]) w = !w
+                    }
+                    return w
+                }
+                const ptSeg = (px, pz, ax, az, bx, bz) => {
+                    const ex = bx - ax, ez = bz - az, t = Math.max(0, Math.min(1, ((px - ax) * ex + (pz - az) * ez) / ((ex * ex + ez * ez) || 1e-12)))
+                    return Math.hypot(px - ax - t * ex, pz - az - t * ez)
+                }
+                const side = (ax, az, bx, bz, px, pz) => (bx - ax) * (pz - az) - (bz - az) * (px - ax)
+                const dist = (F, P) => {
+                    for (const p of F) if (inside(p[0], p[1], P)) return 0
+                    for (const p of P) if (inside(p[0], p[1], F)) return 0
+                    let best = Infinity
+                    for (let i = 0; i < F.length; i++) {
+                        const a = F[i], b = F[(i + 1) % F.length]
+                        for (let j = 0; j < P.length; j++) {
+                            const c = P[j], d = P[(j + 1) % P.length]
+                            if (side(a[0], a[1], b[0], b[1], c[0], c[1]) * side(a[0], a[1], b[0], b[1], d[0], d[1]) < 0
+                                && side(c[0], c[1], d[0], d[1], a[0], a[1]) * side(c[0], c[1], d[0], d[1], b[0], b[1]) < 0) return 0
+                            best = Math.min(best, ptSeg(a[0], a[1], c[0], c[1], d[0], d[1]), ptSeg(b[0], b[1], c[0], c[1], d[0], d[1]),
+                                ptSeg(c[0], c[1], a[0], a[1], b[0], b[1]), ptSeg(d[0], d[1], a[0], a[1], b[0], b[1]))
+                        }
+                    }
+                    return best
+                }
+                // the front-most row with room; in it, the place farthest from the stair's low treads
+                // (the only ones a 1.2 m sign could hide from the viewer), right before left
+                const low = L.treadInfo.filter(t => t.kind !== "arrival" && t.top < 1.4).map(t => {
+                    const P = t.outline; return [P.reduce((s, p) => s + p[0], 0) / P.length, P.reduce((s, p) => s + p[1], 0) / P.length]
+                })
+                const away = (x, z) => Math.min(...low.map(c => Math.hypot(c[0] - x, c[1] - z)))
+                // turned 20° toward the front-right viewer where that fits near the front, else square
+                // to the front, else turned the other way (each tried over 0.35 m of rows from its own
+                // front-most row); the last pass searches square to the front up to 3 m back.
+                // A footprint fits when it lies on the floor plate (margin m) and keeps each obstacle's
+                // gap. Within a row the footprint's depth range is the same for every x, so the rows it
+                // cannot fit and the obstacles it cannot reach are ruled out once per row.
+                const corners = [[-fx, fz0], [fx, fz0], [fx, fz1], [-fx, fz1]]
+                const passes = [[20, 0.35], [0, 0.35], [-20, 0.35], [0, 3]]
+                for (const [yaw, band] of passes) {
+                    const a = yaw * Math.PI / 180, c = Math.cos(a), s = Math.sin(a)
+                    const zf = bz1 - m - (fx * Math.abs(Math.sin(a)) + fz1 * Math.cos(a)) - 0.001
+                    for (let z = zf; z > Math.max(bz0 + m - fz0, zf - band); z -= 0.05) {
+                        const zc = corners.map(([u, v]) => z - u * s + v * c)
+                        const z0 = Math.min(...zc), z1 = Math.max(...zc)
+                        if (z0 <= bz0 + m || z1 >= bz1 - m) continue
+                        const near = obstacles.filter(o => !(z0 > o.bb[3] + o.gap || z1 < o.bb[1] - o.gap))
+                        let best = null
+                        for (let x = bx1 - m - fx + 0.3; x > bx0 + m + fx - 0.3; x -= 0.05) {
+                            const F = corners.map(([u, v], i) => [x + u * c + v * s, zc[i]])
+                            let x0 = Infinity, x1 = -Infinity
+                            for (const p of F) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]) }
+                            if (x0 <= bx0 + m || x1 >= bx1 - m) continue
+                            if (near.every(o => x0 > o.bb[2] + o.gap || x1 < o.bb[0] - o.gap || dist(F, o.P) >= o.gap)) {
+                                const sc = away(x, z)
+                                if (!best || sc > best.s + 1e-6) best = { x, z, yaw, s: sc, found: true }
+                            }
+                        }
+                        if (best) return best
+                    }
+                }
+                return { x: (bx0 + bx1) / 2, z: bz1 + 0.5, yaw: 0, found: false }
+        stand:
+            expression: |
+                return ApplyMaterial({
+                    input: Group([
+                        Box({ size: [0.05, 0.8, 0.05], anchor: [0.5, 0, 0.5] }),
+                        Box({ size: [0.4, 0.012, 0.3], anchor: [0.5, 0, 0.5] }),
+                    ].map(b => Transform({ input: b, translate: [0, 0, -0.1] }))),
+                    material: Material({ color: [0.05, 0.05, 0.055, 1], roughness: 0.4, metallic: 0.6 }),
+                })
+            produces: MESHES
+        panel:
+            op: Transform
+            with:
+                rotate: [-30, 0, 0]
+                translate: [0, 0.62, 0.04]
+            input:
+                group:
+                  - asset: board
+                  - asset: liveRows
+    render:
+        op: Transform
+        with:
+            rotate:
+                expression: |
+                    [0, assets.place.yaw, 0]
+            translate:
+                expression: |
+                    [assets.place.x, 0, assets.place.z]
+        input:
+            group:
+              - asset: panel
+              - asset: stand
+assets/stairs/parts/riserbars.moon: |
+    moon: "1.0"
+    doc: |
+        Open-riser bars: a round steel bar (Ø 14 mm) across every riser gap that would otherwise
+        be wider than 120 mm, mid-height between the tread below and the tread above, along the
+        riser line and housed into both stringers — so no opening exceeds 120 mm. One 12-sided
+        tube per bar, built as one computed mesh; empty for closed risers or small gaps.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        mesh:
+            expression: |
+                const k = 12, verts = [], norms = [], tris = []
+                params.layout.riserBars.forEach(b => {
+                    const r = b.d / 2, base = verts.length
+                    const ax = [b.b[0] - b.a[0], b.b[1] - b.a[1], b.b[2] - b.a[2]], al = Math.hypot(...ax)
+                    const t = ax.map(v => v / al), up = [0, 1, 0]
+                    const side = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+                    const sl = Math.hypot(...side), s = side.map(v => v / sl)
+                    for (let i = 0; i < k; i++) {
+                        const a = 2 * Math.PI * i / k, c = Math.cos(a), sn = Math.sin(a)
+                        const nrm = [s[0] * c + up[0] * sn, s[1] * c + up[1] * sn, s[2] * c + up[2] * sn]
+                        verts.push(b.a.map((v, j) => v + r * nrm[j]), b.b.map((v, j) => v + r * nrm[j]))
+                        norms.push(nrm, nrm)
+                    }
+                    for (let i = 0; i < k; i++) {
+                        const a = base + 2 * i, nx = base + 2 * ((i + 1) % k)
+                        tris.push([a, a + 1, nx + 1], [a, nx + 1, nx])
+                    }
+                })
+                return Mesh({ vertices: verts, triangles: tris, normals: norms })
+            produces: MESHES
+    render:
+        if:
+            expression: |
+                params.layout.riserBars.length > 0
+        then:
+            asset: mesh
+        else:
+            empty: MESHES
+assets/stairs/parts/risers.moon: |
+    moon: "1.0"
+    doc: |
+        Riser boards (closed risers only): one board behind each nosing, standing on the
+        tread below and tucked under the tread above, housed into the stringers. Empty for
+        open risers.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    params.layout.riserParts
+assets/stairs/parts/stringers.moon: |
+    moon: "1.0"
+    doc: |
+        Closed stringers on the open and the wall side. Each straight run is one board whose
+        top edge follows the nosing line along that edge — smoothed through the winders,
+        kinked onto landings — with a foot on the floor and a square cut 1 mm short of the slab
+        edge; the lower edge keeps the flight's slope up to the slab and is cut level with the
+        ceiling, so no board hangs below it (a thin slab gets a gentle lift, as far as the treads
+        allow). Wood boards (50 mm) keep a constant depth; slim steel plates (10 mm) run their
+        lower edge 15 mm under the treads' back corners, so they are only as deep as the treads
+        need. A 5 mm shadow gap separates the wall stringer from the wall.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    params.layout.stringerParts
+            segments: 2
+assets/stairs/parts/treads.moon: |
+    moon: "1.0"
+    doc: |
+        Treads, balanced winders, the landing and the arrival nosing strip: rounded-edge
+        boards cut from the layout outlines (nosing in front, housed into the stringers),
+        the wood grain running along each tread. One mesh per tread, bottom to top.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        boards:
+            import: ../lib/boards.moon
+    render:
+        use:
+            asset: boards
+        with:
+            parts:
+                expression: |
+                    params.layout.treadParts
+assets/stairs/parts/walls.moon: |
+    moon: "1.0"
+    doc: |
+        Context walls along the wall side(s) of the stair as one solid outline, so corners meet
+        cleanly. They stand on the floor plate (no bottom face, no overlap with the floor), their
+        outer faces flush with the plate's edges, their cut ends on the same planes as the plate
+        and the slab, and run up to a section cut 1.1 m above the upper floor. Painted plaster on
+        the room side; the dark section colour on the cut top and ends and on the exterior face, so
+        the outside of the model reads as one section box with the floor plate's edges.
+    params:
+        layout:
+            use:
+                import: ../stair/layout.moon
+    assets:
+        context:
+            import: ../materials/context.moon
+        plaster:
+            use:
+                asset: context
+            with:
+                surface: plaster
+        section:
+            use:
+                asset: context
+            with:
+                surface: section
+    render:
+        expression: |
+            const c = params.layout.ctx, [bx0, bz0, bx1, bz1] = c.box, eps = 3e-4
+            const rect = ([x0, z0, x1, z1]) => Polygon({ points: [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] })
+            const solid = Extrude({ input: Union(c.walls.map(rect)), height: c.wallTop })
+            const out = { plaster: [], section: [] }
+            solid.meshes.forEach(m => {
+                const V = m.vertices, Tr = m.triangles
+                for (let t = 0; t < m.triangleCount; t++) {
+                    const P = [0, 1, 2].map(k => { const v = V[Tr[t][k]]; return [v[0], v[1], v[2]] })
+                    const u = [P[1][0] - P[0][0], P[1][1] - P[0][1], P[1][2] - P[0][2]], w = [P[2][0] - P[0][0], P[2][1] - P[0][1], P[2][2] - P[0][2]]
+                    const nr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]
+                    const nl = Math.hypot(nr[0], nr[1], nr[2])
+                    if (nl < 1e-12) continue
+                    const nrm = nr.map(x => x / nl)
+                    if (nrm[1] < -0.9) continue                       // stands on the floor plate
+                    if (nrm[1] > 0.9) { out.section.push([P, nrm]); continue }
+                    const x = (P[0][0] + P[1][0] + P[2][0]) / 3, z = (P[0][2] + P[1][2] + P[2][2]) / 3
+                    // every face on the box boundary — a cut end or the exterior face — is section
+                    const edge = Math.abs(x - bx0) < eps && nrm[0] < -0.5 || Math.abs(x - bx1) < eps && nrm[0] > 0.5
+                        || Math.abs(z - bz0) < eps && nrm[2] < -0.5 || Math.abs(z - bz1) < eps && nrm[2] > 0.5
+                    out[edge ? "section" : "plaster"].push([P, nrm])
+                }
+            })
+            const mesh = (tris, material) => {
+                const vertices = [], normals = [], triangles = []
+                tris.forEach(([P, nrm]) => { const k = vertices.length; P.forEach(p => { vertices.push(p); normals.push(nrm) }); triangles.push([k, k + 1, k + 2]) })
+                return Mesh({ vertices, normals, triangles, material })
+            }
+            return Group([mesh(out.plaster, assets.plaster), mesh(out.section, assets.section)])
+        produces: MESHES
+assets/stairs/stair/layout.moon: |
+    moon: "1.0"
+    doc: |
+        Stair layout — the single source of truth every part is built from.
+
+        Rules (DIN 18065, residential): rise R = H / n, all equal, within 0.14–0.20; going G on the
+        walking line within 0.23–0.37; step formula 2R + G within 0.59–0.65 (0.63 is the comfortable
+        target); walking line at the middle of the stair width; winders balanced so the inner-edge
+        going changes gradually over several treads (≥ 0.10 at the narrow end); a landing at least as
+        deep as the stair is wide; headroom ≥ 2.00 above the pitch line (above the floor of a landing)
+        wherever the stair runs under the slab.
+
+        The opening: with opening = auto it is sized for the stair — a straight stair's width plus
+        5 cm on the open side, an L's upper flight one stair width long (a landing: the fewest whole
+        treads that long), a U's flights around the smallest eye; the length is the shortest, in
+        5 cm steps, that keeps 2.00 m + 5 cm headroom. With opening = existing the entered opening
+        is used. Candidate stairs: the comfortable one (n = round(H / 0.18), 2R + G = 0.63) first,
+        then every other riser count and going the rules allow, most comfortable first; the first
+        that passes every rule is built (auto: in the opening sized for it). With a landing the
+        upper flight takes as many steps as the opening allows and the landing takes the rest (the
+        split with the most headroom). If nothing passes, the closest stair is built and flagged;
+        for an existing opening the size auto would choose is reported as well.
+
+        Plan frame: the first flight climbs +p, the open (inner) side is +q, turns are left turns;
+        the result is mapped to world X/Z (right turns mirrored, half turns rotated) so the walls
+        stand at the back and on the left and the open side faces the viewer at the front right.
+        A U stair's right-hand wall is cut away so it cannot hide the stair. The context is a
+        cutaway box: floor plate, walls and slab end at the same cut planes. Output is a DATA
+        record in world coordinates, metres.
+    params:
+        floor_height: 2.75
+        slab_thickness: 0.25
+        stair_width: 0.9
+        opening: auto
+        opening_length: 2.6
+        opening_width: 1.9
+        layout: quarter
+        turn: left
+        turn_type: winders
+        stringer: wood
+        risers: closed
+        tread_thickness: 0.04
+        nosing: 0.03
+    assets:
+        # ── RULES ── the design rules, stated once; the readout checks against the same values.
+        rules:
+            value:
+                riseTarget: 0.18
+                riseMin: 0.14
+                riseMax: 0.20
+                stepLength: 0.63
+                stepMin: 0.59
+                stepMax: 0.65
+                goingMin: 0.23
+                goingMax: 0.37
+                headroomMin: 2.0
+                winderInnerMin: 0.10
+                winderInnerTarget: 0.135
+                balusterGapMax: 0.12
+                openRiserGapMax: 0.12
+                handrailHeight: 0.9
+
+        # ── CONSTRUCTION DIMENSIONS ── shared by all parts (the stringer depth follows the rise).
+        dims:
+            expression: |
+                const steel = params.stringer === "steel", closed = params.risers === "closed"
+                return {
+                    steel, closed, tt: params.tread_thickness, nos: params.nosing,
+                    ts: steel ? 0.01 : 0.05,           // stringer thickness
+                    tr: closed ? 0.02 : 0,             // riser board thickness
+                    // tread / riser housing depth into wood stringers; steel plates are not housed: the
+                    // treads stop 2 mm short of the plates and rest on the welded flat bars
+                    hd: steel ? -0.002 : 0.012,
+                    NW: steel ? 0.06 : 0.1,            // newel post size
+                    cTop: steel ? 0.02 : 0.06,         // stringer top above the nosing line
+                    rr: 0.0225,                        // handrail radius (Ø 45)
+                    railH: assets.rules.handrailHeight,
+                    wallRailGap: 0.065,                // wall face to wall-rail centre
+                    wallGap: 0.005,                    // shadow gap between a wall stringer and its wall
+                    wallT: 0.2, wallUp: 1.1, floorT: 0.12, finishT: 0.02,
+                    stripD: 0.1,                       // arrival nosing strip depth on the slab
+                    balD: 0.014, balPitch: 0.12,       // baluster diameter and max centre spacing
+                    shoeGap: 0.05,                     // gallery bottom rail: clearance above the floor,
+                    shoeW: steel ? 0.04 : 0.045,       //   width
+                    shoeH: steel ? 0.03 : 0.04,        //   height
+                    barD: 0.014,                       // open-riser bar diameter
+                    support: [0.04, 0.006],            // steel tread supports: flat bar width, thickness
+                    grain: [1.2, 0.3],                 // wood texture tile, along / across the grain
+                }
+
+        # ── PLAN ── the arrangement search, then flights, turn, walking line, balanced risers and
+        # the cutaway context of the chosen stair (local plan frame).
+        plan:
+            expression: |
+                const ru = assets.rules, dm = assets.dims
+                const H = params.floor_height, slabUnder = H - params.slab_thickness
+                const W = params.stair_width, auto = params.opening === "auto"
+                const lay = params.layout, wind = params.turn_type === "winders", right = params.turn === "right"
+                const ts = dm.ts, ka = dm.tr + dm.nos   // arrival nosing → slab edge
+                // A: the walking line's quarter turn — the length of the 32 chords `arc` draws it with (not
+                // the true arc), so flights, winder balancing and the drawn line agree exactly and the
+                // risers of the straight runs come out exactly square
+                const hp = Math.PI / 2, X = 1.2, A = 32 * W * Math.sin(hp / 64)
+
+                const sub = (a, b) => [a[0] - b[0], a[1] - b[1]]
+                const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k]
+                const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+                const unit = a => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l] }
+                const arc = (c, r, a0, a1) => Array.from({ length: 33 }, (_, i) => {
+                    const a = a0 + (a1 - a0) * i / 32
+                    return [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]
+                })
+                const mkPl = pts => {
+                    const p = [pts[0]]
+                    pts.slice(1).forEach(q => { if (Math.hypot(q[0] - p[p.length - 1][0], q[1] - p[p.length - 1][1]) > 1e-9) p.push(q) })
+                    const c = [0]
+                    for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]))
+                    return { p, c, L: c[c.length - 1] }
+                }
+                const plAt = (poly, s) => {
+                    let i = 0
+                    if (s >= poly.L) i = poly.p.length - 2
+                    else if (s > 0) { let lo = 0, hi = poly.p.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (poly.c[m] <= s) lo = m; else hi = m } i = lo }
+                    const t = (s - poly.c[i]) / (poly.c[i + 1] - poly.c[i])
+                    return [poly.p[i][0] + t * (poly.p[i + 1][0] - poly.p[i][0]), poly.p[i][1] + t * (poly.p[i + 1][1] - poly.p[i][1])]
+                }
+                const cr = (a, b) => a[0] * b[1] - a[1] * b[0]
+                const plHit = (poly, o, d, ref) => {
+                    let best = null
+                    for (let i = 0; i < poly.p.length - 1; i++) {
+                        const a = poly.p[i], e = sub(poly.p[i + 1], a), den = cr(d, e)
+                        if (Math.abs(den) < 1e-12) continue
+                        // a line that grazes a corner (a winder riser aimed at the eye's corner) may miss
+                        // the segment by a hair: within 3 mm it hits the corner, rather than skipping to a
+                        // far segment it runs almost parallel to
+                        const w = sub(a, o), tol = 0.003 / Math.max(Math.hypot(e[0], e[1]), 1e-9)
+                        let u = cr(w, d) / den
+                        if (u < -tol || u > 1 + tol) continue
+                        u = Math.min(1, Math.max(0, u))
+                        const pt = [a[0] + u * e[0], a[1] + u * e[1]]
+                        const dist = Math.hypot(pt[0] - ref[0], pt[1] - ref[1])
+                        if (!best || dist < best.dist) best = { pt, lam: poly.c[i] + u * Math.hypot(e[0], e[1]), dist }
+                    }
+                    return best
+                }
+
+                // ---- one candidate stair: n risers of going G in an Lo × Wo opening ----------------
+                const build = (n, G, Lo, Wo) => {
+                    const R = H / n, S = (n - 1) * G, flags = []
+                    let fam = "A", L1 = S, L2 = 0, eye = 0, back = W, n1 = n, at = 0, sc = 0, q2s = 0
+                    let walk, inner, outer, opening, landing = null
+                    if (lay === "straight") {
+                        walk = [[0, -W / 2], [S, -W / 2]]
+                        inner = [[-X, 0], [S + X, 0]]
+                        outer = [[-X, -W], [S + X, -W]]
+                        opening = { p0: S + ka - Lo, p1: S + ka, q0: -W - ts, q1: -W - ts + Wo }
+                        // the flight with both stringers (and the handrail over the open one) must pass
+                        // through the opening's width, clear of its edge
+                        if (Wo < W + 2 * ts + 0.005 - 1e-9) flags.push("opening narrower than the stair")
+                    } else if (lay === "quarter") {
+                        let qEnd
+                        if (wind) {
+                            L2 = Wo - W - ts - ka
+                            if (L2 < 0) { flags.push("opening too narrow for the turn"); L2 = 0 }
+                            L1 = S - A - L2
+                            if (L1 < 0) { flags.push("opening too wide: no lower flight left"); L1 = 0; L2 = Math.max(0, S - A) }
+                            walk = [[-L1, -W / 2], ...arc([0, 0], W / 2, -hp, 0), [W / 2, L2]]
+                            at = A; sc = L1 + A / 2; qEnd = L2
+                        } else {
+                            // the upper flight takes as many treads as the opening allows, the landing the rest
+                            fam = "B"
+                            let m2 = Math.floor((Wo - ts - ka - W) / G + 1e-9)
+                            if (m2 < 0) { flags.push("opening too narrow for a landing"); m2 = 0 }
+                            if (m2 > n - 2) { flags.push("opening too wide: no lower flight left"); m2 = n - 2 }
+                            n1 = n - m2 - 1; L1 = (n1 - 1) * G
+                            back = Wo - ts - ka - m2 * G
+                            if (back < W - 1e-6) { flags.push("landing shallower than the stair width"); back = W }
+                            q2s = back - W; qEnd = q2s + m2 * G; L2 = m2 * G
+                            walk = [[-L1, -W / 2], ...arc([0, 0], W / 2, -hp, 0), [W / 2, qEnd]]
+                            landing = { p0: 0, p1: W, q0: -W, q1: q2s }
+                        }
+                        inner = [[-L1 - X, 0], [0, 0], [0, qEnd + X]]
+                        outer = [[-L1 - X, -W], [W, -W], [W, qEnd + X]]
+                        opening = { p0: W + ts - Lo, p1: W + ts, q0: -W - ts, q1: -W - ts + Wo }
+                    } else {
+                        eye = Wo - 2 * W - 2 * ts
+                        const eMin = 2 * ts + 0.04
+                        if (eye < eMin) { flags.push("opening too narrow for a half turn"); eye = eMin }
+                        if (wind) {
+                            L2 = Lo - W - ts - ka
+                            if (L2 < 0) { flags.push("opening too short for the turn"); L2 = 0 }
+                            L1 = S - 2 * A - eye - L2
+                            if (L1 < 0) { flags.push("opening too long: no lower flight left"); L1 = 0; L2 = Math.max(0, S - 2 * A - eye) }
+                            walk = [[-L1, -W / 2], ...arc([0, 0], W / 2, -hp, 0), ...arc([0, eye], W / 2, 0, hp), [-L2, eye + W / 2]]
+                            at = 2 * A; sc = L1 + A + eye / 2
+                        } else {
+                            fam = "B"
+                            let m2 = Math.floor((Lo - ts - ka - W) / G + 1e-9)
+                            if (m2 < 0) { flags.push("opening too short for a landing"); m2 = 0 }
+                            if (m2 > n - 2) { flags.push("opening too long: no lower flight left"); m2 = n - 2 }
+                            n1 = n - m2 - 1; L1 = (n1 - 1) * G; L2 = m2 * G
+                            back = Lo - ts - ka - L2
+                            if (back < W - 1e-6) { flags.push("landing shallower than the stair width"); back = W }
+                            walk = [[-L1, -W / 2], [back - W, -W / 2], ...arc([back - W, 0], W / 2, -hp, 0), ...arc([back - W, eye], W / 2, 0, hp), [-L2, eye + W / 2]]
+                            landing = { p0: 0, p1: back, q0: -W, q1: eye + W }
+                        }
+                        inner = [[-L1 - X, 0], [0, 0], [0, eye], [-L2 - X, eye]]
+                        outer = [[-L1 - X, -W], [back, -W], [back, eye + W], [-L2 - X, eye + W]]
+                        opening = { p0: back + ts - Lo, p1: back + ts, q0: -W - ts, q1: -W - ts + Wo }
+                    }
+
+                    // walking line, extended by X at both ends so s = 0 is the first riser
+                    const w0 = unit(sub(walk[1], walk[0])), w1 = unit(sub(walk[walk.length - 1], walk[walk.length - 2]))
+                    const walkPl = mkPl([add(walk[0], w0, -X), ...walk, add(walk[walk.length - 1], w1, X)])
+                    const innerPl = mkPl(inner), outerPl = mkPl(outer)
+
+                    // Winder balancing: the inner edge is shorter than the walking line by the turn's arc
+                    // length At. That shortening is spread as a smooth raised-cosine density f(s)
+                    // (optionally with a plateau) centred on the turn; F(s) = ∫f. Riser j sits at s = jG on
+                    // the walking line and at σ = s − F(s) on the inner edge. f ≤ fm gives an inner going
+                    // ≥ G(1 − fm).
+                    const fCap = 1 - ru.winderInnerMin / G, fTar = 1 - ru.winderInnerTarget / G
+                    const bellFit = (At, c0) => {
+                        let fm = fTar, P = 0, Rr = At / fTar
+                        if (2 * Rr > S) { fm = 2 * At / S; Rr = S / 2 }
+                        if (fm > fCap) {
+                            fm = fCap; Rr = S - At / fCap; P = (At / fCap - Rr) / 2
+                            if (Rr < 0.2 * S || P < 0) { Rr = 0.2 * S; P = S / 2 - Rr; fm = At / (2 * P + Rr) }
+                        }
+                        const half = P + Rr
+                        return { fm: Math.min(fm, 0.97), P, Rr, c: Math.min(Math.max(c0, half), S - half) }
+                    }
+                    const bellF = (b, s) => {
+                        const { fm, P, Rr, c } = b, x = s - c, k = Rr / (2 * Math.PI)
+                        if (x <= -(P + Rr)) return 0
+                        if (x <= -P) { const t = x + P + Rr; return fm * (t / 2 - k * Math.sin(Math.PI * t / Rr)) }
+                        if (x <= P) return fm * (Rr / 2 + x + P)
+                        if (x <= P + Rr) { const t = x - P; return fm * (Rr / 2 + 2 * P + t / 2 + k * Math.sin(Math.PI * t / Rr)) }
+                        return fm * (Rr + 2 * P)
+                    }
+                    const bell = fam === "A" && at > 0 ? bellFit(at, sc) : null
+
+                    // Each entry is a NOSING line (front edge of tread j+1): nosings sit exactly G apart on
+                    // the walking line; the riser face is `nos` behind it along nu (the climbing normal).
+                    const risers = []
+                    if (fam === "A") {
+                        for (let j = 0; j < n; j++) {
+                            const s = j * G, sig = s - (bell ? bellF(bell, s) : 0)
+                            const w = plAt(walkPl, s + X), i = plAt(innerPl, sig + X)
+                            const d = unit(sub(w, i))
+                            const h = plHit(outerPl, i, d, add(w, d, W / 2))
+                            risers.push({ i, o: h ? h.pt : add(w, d, W / 2), d, nu: [-d[1], d[0]], s, sig })
+                        }
+                    } else {
+                        for (let j = 0; j < n; j++) {
+                            let i, o
+                            if (j < n1) { const p = -L1 + j * G; i = [p, 0]; o = [p, -W] }
+                            else if (lay === "quarter") { const q = q2s + (j - n1) * G; i = [0, q]; o = [W, q] }
+                            else { const p = -(j - n1) * G; i = [p, eye]; o = [p, eye + W] }
+                            const d = unit(sub(o, i))
+                            const h = plHit(walkPl, i, d, lerp(i, o, 0.5))
+                            risers.push({ i, o, d, nu: [-d[1], d[0]], s: h ? h.lam - X : j * G })
+                        }
+                    }
+                    return { n, R, G, S, fam, eye, back, n1, at, flags, walkPl, inner, outer, opening, landing, risers }
+                }
+
+                // ---- headroom: the pitch surface between consecutive nosing lines (a landing: its floor),
+                // wherever it lies outside the opening, up to the slab underside — exactly as the readout
+                // measures it on the built treads.
+                // The largest u in [0, 1] at which P + u(Q − P) lies outside the opening (+1 mm), or −1.
+                const lastOutside = (P, Q, o) => {
+                    const e = 1e-3, d = sub(Q, P)
+                    let t0 = 0, t1 = 1, ok = true
+                    const clip = (den, num) => {
+                        if (Math.abs(den) < 1e-15) { if (num < 0) ok = false; return }
+                        if (den > 0) t1 = Math.min(t1, num / den); else t0 = Math.max(t0, num / den)
+                    }
+                    clip(-d[0], P[0] - (o.p0 - e)); clip(d[0], o.p1 + e - P[0])
+                    clip(-d[1], P[1] - (o.q0 - e)); clip(d[1], o.q1 + e - P[1])
+                    if (!ok || t0 > t1 || t1 < 1 - 1e-12) return 1
+                    return t0 > 1e-12 ? t0 : -1
+                }
+                const inside = (p, o) => p[0] >= o.p0 - 1e-3 && p[0] <= o.p1 + 1e-3 && p[1] >= o.q0 - 1e-3 && p[1] <= o.q1 + 1e-3
+                const headroomOf = c => {
+                    let head = Infinity
+                    for (let j = 0; j < c.n - 1; j++) {
+                        if (c.fam === "B" && j === c.n1 - 1) continue
+                        const a = c.risers[j], b = c.risers[j + 1], ya = (j + 1) * c.R
+                        for (let v = 0; v <= 8; v++) {
+                            const u = lastOutside(lerp(a.i, a.o, v / 8), lerp(b.i, b.o, v / 8), c.opening)
+                            if (u >= 0) head = Math.min(head, slabUnder - (ya + c.R * u))
+                        }
+                    }
+                    const l = c.landing
+                    if (l && ![[l.p0, l.q0], [l.p1, l.q0], [l.p1, l.q1], [l.p0, l.q1]].every(p => inside(p, c.opening)))
+                        head = Math.min(head, slabUnder - c.n1 * c.R)
+                    return head
+                }
+                const evaluate = c => {
+                    const head = headroomOf(c)
+                    const wMin = c.fam === "A" && c.at > 0 ? Math.min(...c.risers.slice(1).map((r, j) => r.sig - c.risers[j].sig)) : Infinity
+                    const fails = c.flags.length + (head < ru.headroomMin ? 1 : 0) + (wMin < ru.winderInnerMin - 1e-4 ? 1 : 0)
+                    return { ...c, head, wMin, fails }
+                }
+
+                // ---- the search: the comfortable stair first, then every riser count and going the rules
+                // allow (5 mm steps), most comfortable first; the first stair that passes is built, else
+                // the one with the fewest failures and the most headroom.
+                const n0 = Math.max(2, Math.round(H / ru.riseTarget))
+                const comfort = (R, G) => (Math.abs(2 * R + G - ru.stepLength) + Math.abs(R - ru.riseTarget)) * 100
+                const cands = []
+                for (let n = Math.max(2, Math.ceil(H / ru.riseMax - 1e-9)); n <= Math.floor(H / ru.riseMin + 1e-9); n++) {
+                    const R = H / n, lo = Math.max(ru.goingMin, ru.stepMin - 2 * R), hi = Math.min(ru.goingMax, ru.stepMax - 2 * R)
+                    for (let k = 0; lo + k * 0.005 <= hi + 1e-9; k++) cands.push({ n, G: lo + k * 0.005 })
+                    if (hi > lo + 1e-9) cands.push({ n, G: hi })
+                }
+                cands.forEach(k => { k.cost = comfort(H / k.n, k.G) })
+                cands.sort((a, b) => a.cost - b.cost)
+                cands.unshift({ n: n0, G: ru.stepLength - 2 * H / n0 })
+                const capped = c => Math.min(c.head, ru.headroomMin)
+                const better = (c, b) => !b || c.fails < b.fails || (c.fails === b.fails && capped(c) > capped(b) + 1e-6)
+
+                // Opening `auto`: sized for each candidate stair. The layout fixes one plan dimension —
+                // a straight stair's width plus 5 cm clearance on the open side, an L's upper flight as
+                // long as the stair is wide (a landing: the fewest whole treads that long), a U's two
+                // flights around the smallest eye; the length is then the shortest, in 5 cm steps, that
+                // keeps ≥ 2.00 m + 5 cm headroom. Both dimensions are multiples of 5 cm.
+                const up5 = v => Math.round(Math.ceil(v / 0.05 - 1e-6) * 5) / 100
+                const reserve = 0.05
+                const sizeFor = (n, G) => {
+                    const Wo = lay === "straight" ? up5(W + 2 * ts + 0.05)
+                        : lay === "quarter" ? up5(W + ts + ka + (wind ? W : Math.ceil(W / G - 1e-9) * G))
+                        : up5(2 * W + 4 * ts + 0.04)
+                    // the headroom only grows with the opening's length: bisect, on the 5 cm grid, for the
+                    // shortest length that has it (no opening need be longer than the stair's whole run)
+                    const at = Lo => evaluate(build(n, G, Lo, Wo)), r2 = v => Math.round(v * 100) / 100
+                    const enough = c => c.head >= ru.headroomMin + reserve - 1e-9
+                    const lo0 = lay === "straight" ? 0.8 : up5(W + ts + ka), Lof = i => r2(lo0 + 0.05 * i)
+                    let lo = 0, hi = Math.max(1, Math.ceil((Math.min(8, (n - 1) * G + 2 * W + 1) - lo0) / 0.05))
+                    let cHi = at(Lof(hi))
+                    if (!enough(cHi)) return { c: cHi, Lo: Lof(hi), Wo }
+                    const c0 = at(Lof(0))
+                    if (enough(c0)) return { c: c0, Lo: Lof(0), Wo }
+                    while (hi - lo > 1) {
+                        const mid = (lo + hi) >> 1, c = at(Lof(mid))
+                        if (enough(c)) { hi = mid; cHi = c } else lo = mid
+                    }
+                    return { c: cHi, Lo: Lof(hi), Wo }
+                }
+                const autoSearch = () => {
+                    let best = null
+                    for (const cd of cands) {
+                        const s = sizeFor(cd.n, cd.G)
+                        if (!best || better(s.c, best.c)) best = s
+                        if (s.c.fails === 0) break
+                    }
+                    return best
+                }
+                let best = null
+                if (auto) best = autoSearch()
+                else {
+                    const Lo = params.opening_length, Wo = params.opening_width
+                    for (const cd of cands) {
+                        const c = evaluate(build(cd.n, cd.G, Lo, Wo))
+                        if (better(c, best?.c)) best = { c, Lo, Wo }
+                        if (c.fails === 0) break
+                    }
+                }
+                // an existing opening the stair does not fit in: what `auto` would make of it
+                const suggest = !auto && best.c.fails > 0 ? autoSearch() : null
+                const c = best.c, { n, R, G, fam, eye, back, opening, risers } = c
+
+                // ---- context: a cutaway box — floor plate, walls and slab end at the same cut planes ----
+                const wT = dm.wallT, mS = 0.6, gap = dm.wallGap
+                // the stair's outer sides in climbing order, the side it arrives along last
+                const sides = lay === "straight" ? ["q0"] : lay === "quarter" ? ["q0", "p1"] : ["q0", "p1", "q1"]
+                const cutAway = lay === "half" ? (right ? "q1" : "q0") : null   // a U stair's right-hand wall
+                const wallSides = sides.filter(s => s !== cutAway)
+                const has = s => wallSides.includes(s)
+                // wall faces: a shadow gap off the wall stringers, so no stringer face lies in a wall face
+                const face = { q0: -W - ts - gap, p1: (lay === "half" ? back : W) + ts + gap, q1: eye + W + ts + gap }
+                const fpP = risers.flatMap(r => [r.i[0], r.o[0]]), fpQ = risers.flatMap(r => [r.i[1], r.o[1]])
+                // the floor in front of the stair leaves room for the readout sign: beside the approach
+                // to the first step on an L, in front of it on a U (too narrow for both side by side)
+                const box = {
+                    p0: Math.min(opening.p0 - mS, Math.min(...fpP) - (lay === "half" ? 1.5 : 0.9)),
+                    p1: has("p1") ? face.p1 + wT : Math.max(opening.p1 + mS, Math.max(...fpP) + 0.6),
+                    q0: has("q0") ? face.q0 - wT : face.q0,
+                    q1: has("q1") ? face.q1 + wT : lay === "half" ? face.q1 : Math.max(opening.q1 + mS, Math.max(...fpQ) + (lay === "straight" ? 0.9 : 0.6)),
+                }
+                // the slab bears half a wall deep into the walls; along a wall the opening runs into the
+                // wall too, so no slab face lies in a wall face
+                const slabR = {
+                    p0: box.p0,
+                    p1: has("p1") ? face.p1 + wT / 2 : box.p1,
+                    q0: has("q0") ? face.q0 - wT / 2 : box.q0,
+                    q1: has("q1") ? face.q1 + wT / 2 : box.q1,
+                }
+                const atWall = (a, b) => Math.abs(a - b) < gap + 1e-6
+                const openingExt = {
+                    p0: opening.p0,
+                    p1: lay !== "straight" && atWall(opening.p1, face.p1) ? box.p1 + 0.1 : opening.p1,
+                    q0: atWall(opening.q0, face.q0) ? box.q0 - 0.1 : opening.q0,
+                    q1: lay === "half" && atWall(opening.q1, face.q1) ? box.q1 + 0.1 : opening.q1,
+                }
+                const walls = [], recesses = []
+                // where a wall ends on a cut plane, the slab's bearing inside it stops 3 mm short, so the
+                // slab's cut face and the wall's cut end never share that plane
+                if (has("q0")) {
+                    walls.push({ p0: box.p0, p1: box.p1, q0: face.q0 - wT, q1: face.q0 })
+                    recesses.push({ p0: box.p0 - 0.1, p1: box.p0 + 0.003, q0: face.q0 - wT, q1: face.q0 })
+                    if (!has("p1")) recesses.push({ p0: box.p1 - 0.003, p1: box.p1 + 0.1, q0: face.q0 - wT, q1: face.q0 })
+                }
+                if (has("q1")) {
+                    walls.push({ p0: box.p0, p1: box.p1, q0: face.q1, q1: face.q1 + wT })
+                    recesses.push({ p0: box.p0 - 0.1, p1: box.p0 + 0.003, q0: face.q1, q1: face.q1 + wT })
+                    if (!has("p1")) recesses.push({ p0: box.p1 - 0.003, p1: box.p1 + 0.1, q0: face.q1, q1: face.q1 + wT })
+                }
+                if (has("p1")) {
+                    walls.push({ p0: face.p1, p1: face.p1 + wT, q0: box.q0, q1: box.q1 })
+                    if (!has("q0")) recesses.push({ p0: face.p1, p1: face.p1 + wT, q0: box.q0 - 0.1, q1: box.q0 + 0.003 })
+                    if (!has("q1")) recesses.push({ p0: face.p1, p1: face.p1 + wT, q0: box.q1 - 0.003, q1: box.q1 + 0.1 })
+                }
+
+                // ---- clash zone (only when the headroom fails): the stair footprint, widened over the
+                // stringers and the handrail, where the pitch surface rises above slab underside − 2.00
+                const clash = []
+                if (c.head < ru.headroomMin) {
+                    const t = slabUnder - ru.headroomMin, wid = Math.max(ts + gap, ts / 2 + dm.rr) + 0.003
+                    const widen = r => { const e = unit(sub(r.o, r.i)); return [add(r.i, e, -wid), add(r.o, e, wid)] }
+                    for (let j = 0; j < n - 1; j++) {
+                        const ya = (j + 1) * R
+                        if (ya + R <= t) continue
+                        if (fam === "B" && j === c.n1 - 1) {
+                            const l = c.landing
+                            if (c.n1 * R > t) clash.push([[l.p0 - wid, l.q0 - wid], [l.p1 + wid, l.q0 - wid], [l.p1 + wid, l.q1 + wid], [l.p0 - wid, l.q1 + wid]])
+                            continue
+                        }
+                        const [a0, b0] = widen(risers[j]), [a1, b1] = widen(risers[j + 1]), u = Math.max(0, (t - ya) / R)
+                        clash.push([lerp(a0, a1, u), lerp(b0, b1, u), b1, a1])
+                    }
+                    // on to the stringer ends, at the back of the last riser
+                    const rl = risers[n - 1], [a1, b1] = widen(rl)
+                    if (n * R > t) clash.push([a1, b1, add(b1, rl.nu, ka), add(a1, rl.nu, ka)])
+                }
+                // the slab edge the stair arrives at: dot(n, x) = d in the plan frame
+                const arrival = lay === "straight" ? { n: [1, 0], d: opening.p1 } : lay === "quarter" ? { n: [0, 1], d: opening.q1 } : { n: [-1, 0], d: -opening.p0 }
+
+                // ---- gallery railing on the upper floor: from the top newel along the free opening
+                // edges (set back half a post onto the slab) to the wall or the cut
+                const gs = dm.NW / 2, o = opening
+                const gRaw = lay === "straight" ? [[o.p1 + gs, ts / 2], [o.p1 + gs, o.q1 + gs], [o.p0 - gs, o.q1 + gs], [o.p0 - gs, o.q0 + gs]]
+                    : lay === "quarter" ? [[-ts / 2, o.q1 + gs], [o.p0 - gs, o.q1 + gs], [o.p0 - gs, o.q0 + gs]]
+                    : [[o.p0 - gs, eye - ts / 2], [o.p0 - gs, o.q0 + gs]]
+                const gallery = gRaw.filter((p, i) => i === 0 || i === gRaw.length - 1 || Math.hypot(p[0] - gRaw[i - 1][0], p[1] - gRaw[i - 1][1]) > dm.NW)
+
+                // ---- local → world [X = a·p + b·q, Z = c·p + d·q], centred on the box. Right turns are
+                // the mirror images of left turns.
+                const m = lay === "half" ? (right ? [0, 1, -1, 0] : [0, -1, -1, 0])
+                    : lay === "quarter" ? (right ? [0, 1, -1, 0] : [-1, 0, 0, 1])
+                    : (right ? [1, 0, 0, 1] : [-1, 0, 0, 1])
+                const cp = (box.p0 + box.p1) / 2, cq = (box.q0 + box.q1) / 2
+                const map = [...m, m[0] * cp + m[1] * cq, m[2] * cp + m[3] * cq]
+
+                return {
+                    openingSize: [best.Lo, best.Wo], openingAuto: auto, reserve, suggest: suggest && suggest.c.fails === 0 ? [suggest.Lo, suggest.Wo] : null,
+                    steps: { n, R, G, S: c.S }, fam, lay, n1: c.n1, eye, back, at: c.at, flags: c.flags,
+                    gallery, walkExt: c.walkPl.p, inner: c.inner, outer: c.outer, risers, opening,
+                    box, slabR, openingExt, walls, recesses, sides, wallSides, clash, arrival, map, X,
+                }
+
+        # ── PARTS ── outlines, rails, profiles, posts, paths — everything in world coordinates.
+        parts:
+            expression: |
+                const pl = assets.plan, dm = assets.dims, ru = assets.rules
+                const { n, R, G } = pl.steps
+                const H = params.floor_height, W = params.stair_width
+                const { tt, nos, tr, ts, hd, NW, cTop, rr, railH } = dm
+                const fam = pl.fam, n1 = pl.n1
+                const fc = nos + tr                         // nosing line → back of the riser
+                const Dv = R + tt + cTop + 0.07             // wood stringer depth, measured vertically
+
+                // ---- vector and polyline helpers ---------------------------------------------
+                const sub = (a, b) => [a[0] - b[0], a[1] - b[1]]
+                const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k]
+                const unit = a => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l] }
+                const cr = (a, b) => a[0] * b[1] - a[1] * b[0]
+                const dot = (a, b) => a[0] * b[0] + a[1] * b[1]
+                const left = a => [-a[1], a[0]]
+                const mkPl = pts => {
+                    const p = [pts[0]]
+                    pts.slice(1).forEach(q => { if (Math.hypot(q[0] - p[p.length - 1][0], q[1] - p[p.length - 1][1]) > 1e-9) p.push(q) })
+                    const c = [0]
+                    for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]))
+                    return { p, c, L: c[c.length - 1] }
+                }
+                const segOf = (poly, s) => {
+                    if (s >= poly.L) return poly.p.length - 2
+                    if (s <= 0) return 0
+                    let lo = 0, hi = poly.p.length - 1
+                    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (poly.c[m] <= s) lo = m; else hi = m }
+                    return lo
+                }
+                const plAt = (poly, s) => {
+                    const i = segOf(poly, s), t = (s - poly.c[i]) / (poly.c[i + 1] - poly.c[i])
+                    return [poly.p[i][0] + t * (poly.p[i + 1][0] - poly.p[i][0]), poly.p[i][1] + t * (poly.p[i + 1][1] - poly.p[i][1])]
+                }
+                const plDir = (poly, s) => { const i = segOf(poly, s); return unit(sub(poly.p[i + 1], poly.p[i])) }
+                const plHitRaw = (poly, o, d, ref) => {
+                    let best = null
+                    for (let i = 0; i < poly.p.length - 1; i++) {
+                        const a = poly.p[i], e = sub(poly.p[i + 1], a), den = cr(d, e)
+                        if (Math.abs(den) < 1e-12) continue
+                        // a line that grazes a corner (a winder riser aimed at the eye's corner) may miss
+                        // the segment by a hair: within 3 mm it hits the corner, rather than skipping to a
+                        // far segment it runs almost parallel to
+                        const w = sub(a, o), tol = 0.003 / Math.max(Math.hypot(e[0], e[1]), 1e-9)
+                        let u = cr(w, d) / den
+                        if (u < -tol || u > 1 + tol) continue
+                        u = Math.min(1, Math.max(0, u))
+                        const pt = [a[0] + u * e[0], a[1] + u * e[1]]
+                        const dist = Math.hypot(pt[0] - ref[0], pt[1] - ref[1])
+                        if (!best || dist < best.dist) best = { pt, lam: poly.c[i] + u * Math.hypot(e[0], e[1]), dist }
+                    }
+                    return best
+                }
+                const plHit = (poly, o, d, ref) => plHitRaw(poly, o, d, ref) ?? { pt: ref, lam: 0, dist: 0 }
+                // the nearest point of a polyline to ref
+                const plNear = (poly, ref) => {
+                    let best = null
+                    for (let i = 0; i < poly.p.length - 1; i++) {
+                        const a = poly.p[i], e = sub(poly.p[i + 1], a), L2 = dot(e, e) || 1e-12
+                        const u = Math.max(0, Math.min(1, dot(sub(ref, a), e) / L2)), pt = add(a, e, u)
+                        const dist = Math.hypot(pt[0] - ref[0], pt[1] - ref[1])
+                        if (!best || dist < best.dist - 1e-12) best = { pt, lam: poly.c[i] + u * Math.sqrt(L2), dist }
+                    }
+                    return best
+                }
+                const offsetPl = (pts, dist) => pts.map((p, i) => {
+                    const a = i > 0 ? unit(sub(p, pts[i - 1])) : null, b = i < pts.length - 1 ? unit(sub(pts[i + 1], p)) : null
+                    if (!a) return add(p, left(b), dist)
+                    if (!b) return add(p, left(a), dist)
+                    const na = left(a), nb = left(b), k = 1 + dot(na, nb)
+                    return [p[0] + (na[0] + nb[0]) * dist / k, p[1] + (na[1] + nb[1]) * dist / k]
+                })
+                // monotone cubic (Fritsch–Carlson) or linear interpolation, linear extrapolation
+                const interp = (xs, ys, smooth) => {
+                    const m = xs.length, h = [], dl = []
+                    for (let i = 0; i < m - 1; i++) { h.push(xs[i + 1] - xs[i]); dl.push((ys[i + 1] - ys[i]) / h[i]) }
+                    const t = new Array(m)
+                    t[0] = dl[0]; t[m - 1] = dl[m - 2]
+                    for (let i = 1; i < m - 1; i++) {
+                        if (!smooth) { t[i] = 0; continue }
+                        if (dl[i - 1] * dl[i] <= 0) t[i] = 0
+                        else { const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1]; t[i] = (w1 + w2) / (w1 / dl[i - 1] + w2 / dl[i]) }
+                    }
+                    return x => {
+                        if (x <= xs[0]) return ys[0] + (x - xs[0]) * dl[0]
+                        if (x >= xs[m - 1]) return ys[m - 1] + (x - xs[m - 1]) * dl[m - 2]
+                        let lo = 0, hi = m - 1
+                        while (hi - lo > 1) { const k = (lo + hi) >> 1; if (xs[k] <= x) lo = k; else hi = k }
+                        const u = (x - xs[lo]) / h[lo]
+                        if (!smooth) return ys[lo] + u * (ys[lo + 1] - ys[lo])
+                        const u2 = u * u, u3 = u2 * u
+                        return (2 * u3 - 3 * u2 + 1) * ys[lo] + (u3 - 2 * u2 + u) * h[lo] * t[lo] + (-2 * u3 + 3 * u2) * ys[lo + 1] + (u3 - u2) * h[lo] * t[lo + 1]
+                    }
+                }
+                const rnd = k => { const x = Math.sin(k * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
+
+                // ---- local plan → world ------------------------------------------------------
+                const M = pl.map
+                const toW = ([p, q]) => [M[0] * p + M[1] * q - M[4], M[2] * p + M[3] * q - M[5]]
+                const vW = ([p, q]) => [M[0] * p + M[1] * q, M[2] * p + M[3] * q]
+                const P3 = (pt, y) => { const w = toW(pt); return [w[0], y, w[1]] }
+                const B2 = pt => { const w = toW(pt); return [w[0], -w[1]] }     // board frame of plan parts
+                const [Su, Sv] = dm.grain
+                const plan = (pts, y0, y1, r, g, k) => {   // a horizontal board from a local plan outline
+                    const gw = unit(vW(g)), gb = [gw[0], -gw[1]], gp = [-gb[1], gb[0]]
+                    return { pts: pts.map(B2), o: [0, y0, 0], e1: [1, 0, 0], e2: [0, 0, -1], z0: 0, z1: y1 - y0, r,
+                        uvU: [gb[0] / Su, gb[1] / Su, 0], uvV: [gp[0] / Sv, gp[1] / Sv, 1 / Sv], uvO: [rnd(k), rnd(k + 0.5)] }
+                }
+                const post = (pts, y0, y1, r, k) => ({ pts: pts.map(B2), o: [0, y0, 0], e1: [1, 0, 0], e2: [0, 0, -1], z0: 0, z1: y1 - y0, r,
+                    uvU: [0, 0, 1 / Su], uvV: [1 / Sv, 0.7 / Sv, 0], uvO: [rnd(k), rnd(k + 0.3)] })
+
+                // ---- boundaries and rails (local) ----------------------------------------------
+                const innerB = mkPl(pl.inner), outerB = mkPl(pl.outer)
+                const innerExt = mkPl(offsetPl(pl.inner, hd)), outerExt = mkPl(offsetPl(pl.outer, -hd))
+                const innerRail = mkPl(offsetPl(pl.inner, ts / 2)), outerRail = mkPl(offsetPl(pl.outer, -ts / 2))
+                const innerFace2 = mkPl(offsetPl(pl.inner, ts)), outerFace2 = mkPl(offsetPl(pl.outer, -ts))   // the boards' far faces
+                const rs = pl.risers
+                const sh = (r, k) => add(r.i, r.nu, k)
+                // A riser line shifted by k ends where it crosses the edge polyline near the riser's end.
+                // A riser running almost parallel to that edge (the middle winder of a wide U turn heads
+                // from the eye straight to the back wall) crosses it far away once shifted — then it ends
+                // at the edge point nearest to its shifted end instead.
+                const ending = (poly, r, k, ref) => {
+                    const h = plHitRaw(poly, sh(r, k), r.d, ref)
+                    return h && h.dist <= 0.15 ? h : plNear(poly, ref)
+                }
+                const hitIn = (poly, r, k) => ending(poly, r, k, sh(r, k))
+                const hitOut = (poly, r, k) => ending(poly, r, k, add(r.o, r.nu, k))
+
+                // ---- treads, landing and the arrival nosing strip ---------------------------------
+                const between = (poly, l0, l1) => poly.p.filter((_, k) => poly.c[k] > l0 + 1e-6 && poly.c[k] < l1 - 1e-6)
+                const outline = (rf, kf, rb, kb, outP = outerExt) => {
+                    const fi = hitIn(innerExt, rf, kf), bi = hitIn(innerExt, rb, kb)
+                    const fo = hitOut(outP, rf, kf), bo = hitOut(outP, rb, kb)
+                    return [fi.pt, ...between(innerExt, fi.lam, bi.lam), bi.pt, bo.pt, ...between(outP, fo.lam, bo.lam).reverse(), fo.pt]
+                }
+                // The arrival nosing strip is let into the upper floor. Where a wall stands beside it, it
+                // runs over the wall stringer and its shadow gap to the wall face (0.5 mm short), so the
+                // floor stone stops behind it instead of reaching past its end to the slab edge.
+                const stripOuter = pl.wallSides.includes(pl.sides[pl.sides.length - 1]) ? mkPl(offsetPl(pl.outer, -(ts + dm.wallGap - 0.0005))) : outerExt
+                // nosing line = shift 0, riser face = shift nos, riser board back = shift nos + tr
+                const treadInfo = [], treadParts = []
+                for (let k = 1; k <= n; k++) {
+                    const last = k === n
+                    const pts = last ? outline(rs[n - 1], 0, rs[n - 1], fc + dm.stripD, stripOuter) : outline(rs[k - 1], 0, rs[k], fc)
+                    const top = last ? H : k * R
+                    // the mean walking direction (the visible grain runs across it, along the board); where
+                    // the two risers face opposite ways (a half-turn landing) that mean vanishes — the
+                    // landing then takes the direction of the riser in front of it, so its grain runs
+                    // along its long side like the treads
+                    const gs = last ? rs[n - 1].d : add(rs[k - 1].d, rs[k].d)
+                    const g = Math.hypot(gs[0], gs[1]) > 1e-3 ? unit(gs) : rs[k - 1].d
+                    treadParts.push(plan(pts, top - tt, top, 0.005, g, k))
+                    treadInfo.push({ k, top, kind: last ? "arrival" : (fam === "B" && k === n1 ? "landing" : "tread"), outline: pts.map(p => toW(p)) })
+                }
+
+                // ---- riser boards: standing on the tread below, tucked under the tread above, their
+                // ends cut along the stringers like the treads (a square end would show through a thin
+                // steel plate where a winder riser meets it at an angle) ---------------------------------
+                const riserParts = []
+                if (dm.closed) rs.forEach((r, j) => riserParts.push(plan(outline(r, nos, r, fc), j * R, (j + 1) * R - tt, 0.002, r.d, j + 50)))
+
+                // ---- open risers: a steel bar mid-height in every riser gap wider than 120 mm. Its ends
+                // reach into the stringers, but never so far that an end cut at an angle shows through.
+                const riserBars = []
+                const barEnd = (P, r, isIn) => {
+                    const h = isIn ? hitIn(P, r, nos) : hitOut(P, r, nos), s = segOf(P, h.lam)
+                    const t = unit(sub(P.p[s + 1], P.p[s])), slant = Math.abs(dot(r.d, t)) / Math.max(Math.abs(cr(r.d, t)), 1e-6)
+                    const e = Math.max(0, Math.min(hd, ts - 0.002 - dm.barD / 2 * slant))
+                    return add(h.pt, r.d, isIn ? -e : e)
+                }
+                if (!dm.closed) rs.forEach((r, j) => {
+                    const y0 = j * R, y1 = j === n - 1 ? Math.min(H - tt, H - params.slab_thickness) : (j + 1) * R - tt
+                    if (y1 - y0 <= ru.openRiserGapMax) return
+                    const y = (y0 + y1) / 2
+                    riserBars.push({ a: P3(barEnd(innerB, r, true), y), b: P3(barEnd(outerB, r, false), y), d: dm.barD, below: y0, above: y1 })
+                })
+
+                // ---- stringer profiles along the rails --------------------------------------------
+                const railProfile = (rail, isIn) => {
+                    const hit = isIn ? hitIn : hitOut
+                    const lam = rs.map(r => hit(rail, r, 0).lam)
+                    for (let j = 1; j < n; j++) lam[j] = Math.max(lam[j], lam[j - 1] + 0.004)
+                    const xs = [], ys = []
+                    lam.forEach((l, j) => {
+                        if (fam === "B" && j === n1 && l - G > lam[j - 1] + 0.01) { xs.push(l - G); ys.push(n1 * R + cTop) }
+                        xs.push(l); ys.push((j + 1) * R + cTop)
+                    })
+                    const nose = interp(xs, ys, fam === "A")          // nosing line + cTop (handrails follow it)
+                    // Where winders converge on a newel, risers land (almost) on one point of the rail
+                    // and the nosing line jumps a full rise there — a notch in the board. The board's
+                    // edges are eased to at most smax: the top knots move back (the top only rises, so it
+                    // stays above every nosing), the lower-edge knots move ahead (it only drops).
+                    // Inside the U stair's central post [a, b] the boards are hidden, so the edges jump
+                    // there: fixed knots at the post's faces — the top arrives at a at the level it already
+                    // has and leaves b at the level reached; the lower edge arrives at a low enough for the
+                    // tread whose back hides in the post and leaves b low enough for the next one — and no
+                    // easing between them.
+                    const smax = 4 * R / G
+                    // [a, b]: the stretch of this rail inside the post (its faces stand NW − ts/2 beyond the
+                    // rail corners). A winder riser crosses the board at a slant, so a knot up to m (5 cm) beyond a
+                    // face may still show at it: those knots count on both sides.
+                    const zones = isIn && pl.lay === "half" && pl.eye <= NW + 0.06 ? [[rail.c[1] - (NW - ts / 2), rail.c[2] + (NW - ts / 2)]] : []
+                    const m = 0.08
+                    const easeKnots = (ks, vs, back) => {
+                        let K = ks.map((x, i) => ({ x, y: vs[i], fix: false }))
+                        for (const [a, b] of zones) {
+                            const before = K.filter(k => k.x < a), inside = K.filter(k => k.x >= a && k.x <= b), after = K.filter(k => k.x > b)
+                            if (!before.length || !after.length) continue
+                            const ys0 = k => k.y, nearA = K.filter(k => k.x < a + m), nearB = K.filter(k => k.x > b - m)
+                            const yA = back ? Math.max(...nearA.map(ys0)) : Math.min(...K.filter(k => k.x >= a - m).map(ys0))
+                            const yB = back ? Math.max(...K.filter(k => k.x <= b).map(ys0)) : Math.min(...nearB.map(ys0))
+                            K = [...before, { x: a, y: yA, fix: true }, { x: b, y: yB, fix: true }, ...after]
+                        }
+                        const x = K.map(k => k.x), y = K.map(k => k.y)
+                        if (back) { for (let i = x.length - 2; i >= 0; i--) if (!K[i].fix) x[i] = Math.min(x[i], x[i + 1] - (y[i + 1] - y[i]) / smax) }
+                        else for (let i = 1; i < x.length; i++) if (!K[i].fix) x[i] = Math.max(x[i], x[i - 1] + (y[i] - y[i - 1]) / smax)
+                        for (let i = 1; i < x.length; i++) x[i] = Math.max(x[i], x[i - 1] + 1e-4)
+                        return { x, y }
+                    }
+                    const eT = easeKnots(xs, ys, true), eL = easeKnots(xs, ys, false)
+                    const edgeTop = interp(eT.x, eT.y, fam === "A"), edgeLow = interp(eL.x, eL.y, fam === "A")
+                    // the stringer is cut level with the upper floor, 2 mm below it: the arrival tread
+                    // (its top at H) is housed into the board, so a top at H would share that plane
+                    const top = x => Math.min(edgeTop(x), H - 0.002)
+                    const under = x => Math.min(edgeLow(x), H)         // a wood board's lower edge hangs Dv under this
+                    // a steel plate's lower edge runs 15 mm under the treads' back-bottom corners. A winder's
+                    // riser crosses the board at a slant, so its back corner can lie further along the
+                    // board than where the riser crosses the board's centre line: the crossing is taken
+                    // on both board faces and on the tread's edge line, and the furthest one counts.
+                    const band = isIn ? [innerB, innerExt, innerFace2] : [outerB, outerExt, outerFace2]
+                    const backAt = r => Math.max(hit(rail, r, fc).lam, ...band.map(P => plNear(rail, hit(P, r, fc).pt).lam))
+                    const bl = [], by = []
+                    for (let k = 1; k < n; k++) {
+                        bl.push(Math.max(backAt(rs[k]), bl.length ? bl[bl.length - 1] + 0.004 : -Infinity))
+                        by.push(k * R - tt - 0.015)
+                    }
+                    const blE = easeKnots(bl, by, false)
+                    const low = bl.length > 1 ? interp(blE.x, blE.y, fam === "A") : (x => by[0] ?? 0)
+                    // the stringer ends 1 mm short of the slab edge, so it never reaches into the slab
+                    // and its end face never lies in the slab edge's plane
+                    const l1 = hit(rail, rs[n - 1], fc).lam, an = pl.arrival.n, E = [an[0] * pl.arrival.d, an[1] * pl.arrival.d]
+                    const edge = plHit(rail, E, left(an), plAt(rail, l1)), crosses = Math.abs(dot(an, edge.pt) - pl.arrival.d) < 1e-6
+                    const knots = [...xs, ...eT.x, ...eL.x, ...(bl.length > 1 ? blE.x : [])]   // the edges' corner points
+                    return { lam, xs, ys, knots, nose, top, under, low, edgeTop, edgeLow, l0: lam[0] - 0.02, l1, lEnd: Math.min(l1, crosses ? edge.lam : l1) - 0.001 }
+                }
+                const prIn = railProfile(innerRail, true), prOut = railProfile(outerRail, false)
+                // the top edge's corner where it meets the upper floor level (top = min(edgeTop, H)) is
+                // a knot too: every board sampled along the edge (stringer, string capping) breaks
+                // exactly there, so no chord cuts the corner and no gap opens between them
+                ;[prIn, prOut].forEach(pr => {
+                    let a = pr.l0, b = pr.l1 + 1
+                    const Hc = H - 0.002
+                    if (!(pr.edgeTop(a) < Hc && pr.edgeTop(b) > Hc)) return
+                    for (let i = 0; i < 60; i++) { const m = (a + b) / 2; if (pr.edgeTop(m) < Hc) a = m; else b = m }
+                    pr.hx = (a + b) / 2
+                    pr.knots.push(pr.hx)
+                })
+                // The lower edge keeps the flight's slope right up to the slab (it is not flattened where
+                // the top is cut flush with the floor) and gets a level cut flush with the ceiling: the
+                // board never hangs below the slab. Where the slope alone would end short of the ceiling
+                // (a thin slab), the shortfall is taken up by a gentle lift over the last 1.2 m — zero
+                // lift and zero slope change where it starts, so the edge has no kink.
+                const rawBot = (pr, x) => dm.steel ? Math.min(pr.low(x), pr.edgeTop(x) - 0.1) : Math.min(pr.edgeLow(x) - Dv, pr.low(x) - 0.025)
+                const ceilY = H - params.slab_thickness
+                // (The lift is scaled down, never bent, where the full amount would uncover a tread's
+                // back corner — with a very thin slab the treads themselves reach below the ceiling.)
+                const smooth = u => u * u * (3 - 2 * u)
+                const liftOf = pr => {
+                    const x0 = Math.max(pr.l0, pr.lEnd - 1.2)
+                    let need = ceilY - rawBot(pr, pr.lEnd)
+                    for (let i = 1; i <= 48 && need > 0; i++) {
+                        const x = x0 + (pr.lEnd - x0) * i / 48, room = pr.low(x) - 0.01 - rawBot(pr, x)
+                        need = Math.min(need, Math.max(0, room) / smooth(i / 48))
+                    }
+                    return { x0, need: Math.max(0, need) }
+                }
+                const lift = (pr, x) => {
+                    const { x0, need } = pr.lf
+                    if (need <= 0 || x <= x0) return 0
+                    return need * smooth(Math.min(1, (x - x0) / (pr.lEnd - x0)))
+                }
+                const bot = (pr, x) => Math.max(0, Math.min(rawBot(pr, x) + lift(pr, x), ceilY))
+                prIn.lf = liftOf(prIn); prOut.lf = liftOf(prOut)
+                const floorBreak = pr => { let a = pr.l0, b = pr.l0 + 3; for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if (rawBot(pr, m) > 0) b = m; else a = m } return b }
+                const eyeNewel = pl.lay === "half" && pl.eye <= NW + 0.06
+                const stringerParts = []
+                const pieces = (rail, pr, isIn) => {
+                    const fb = floorBreak(pr)
+                    for (let k = 0; k < rail.p.length - 1; k++) {
+                        if (isIn && eyeNewel && k === 1) continue
+                        const c0 = rail.c[k], c1 = rail.c[k + 1], first = k === 0, final = k === rail.p.length - 2
+                        // Corners. Inner corners lie inside the turn newels: the two boards overlap in the
+                        // corner square (the incoming one 0.5 mm past the outgoing one's face, the outgoing
+                        // one starting 0.5 mm inside the incoming one, so no end face lies in a side face),
+                        // their tops levelled there. Outer corners (against the walls) are butt joints: the
+                        // incoming board runs through the corner square (0.5 mm proud of the outgoing board's
+                        // wall face), the outgoing one starts at its inner face (0.5 mm into it). The
+                        // incoming top eases up just before the corner and is level across the square at the
+                        // outgoing board's starting height, so the two top lines meet at one height.
+                        let a = !first ? (isIn ? c0 - ts / 2 + 0.0005 : c0 + ts / 2 - 0.0005) : c0
+                        let b = !final ? c1 + ts / 2 + 0.0005 : c1
+                        a = Math.max(a, pr.l0); b = Math.min(b, pr.lEnd)
+                        if (b - a < 0.02) continue
+                        const dir = unit(sub(rail.p[k + 1], rail.p[k])), A0 = add(rail.p[k], dir, a - rail.c[k])
+                        // (the ease: over the last 0.15 m before the corner square the incoming top gains the
+                        // difference to the outgoing board's starting height on a smoothstep, so it only ever
+                        // rises above its own line — no tread corner is uncovered — and arrives level)
+                        const xr = c1 - ts / 2, hStar = pr.top(c1 + ts / 2), easeL = 0.15, gain = hStar - pr.top(xr)
+                        // samples along the board: the points that matter (ends, corners, the corner square's
+                        // start, the floor break) always, the others only 6 mm clear of every kept one —
+                        // points closer than the edge radius would fold the rounded side faces
+                        const must = [a, b, c0, c1, xr, fb, pr.hx ?? -Infinity].filter(x => x >= a && x <= b)
+                        const other = [...pr.knots]
+                        if (!isIn && !final) for (let j = 1; j <= 15; j++) other.push(xr - j * 0.01)
+                        for (let x = a + 0.06; x < b; x += 0.06) other.push(x)
+                        const kept = [...must]
+                        other.filter(x => x > a && x < b).sort((u, v) => u - v).forEach(x => { if (kept.every(y => Math.abs(x - y) >= 0.006)) kept.push(x) })
+                        kept.sort((u, v) => u - v)
+                        const xs = kept.filter((x, i) => i === 0 || x - kept[i - 1] > 1e-4)
+                        const topAt = x => {
+                            if (isIn) return !final && x > c1 ? pr.top(c1) : !first && x < c0 ? pr.top(c0) - 0.0005 : pr.top(x)
+                            if (final) return pr.top(x)
+                            if (x >= xr) return hStar
+                            const u = Math.max(0, Math.min(1, (x - (xr - easeL)) / easeL))
+                            return pr.top(x) + Math.max(0, gain) * smooth(u)
+                        }
+                        const lo = xs.map(x => [x - a, bot(pr, x)]), hi = xs.map(x => [x - a, topAt(x)]).reverse()
+                        const dw = unit(vW(dir)), aw = toW(A0)
+                        stringerParts.push({ pts: [...lo, ...hi], strip: true, o: [aw[0], 0, aw[1]], e1: [dw[0], 0, dw[1]], e2: [0, 1, 0],
+                            z0: -ts / 2, z1: ts / 2, r: dm.steel ? 0.0015 : 0.004, uvU: [1 / Su, 0, 0], uvV: [0, 1 / Sv, 1 / Sv], uvO: [rnd(k + 80 + (isIn ? 0 : 9)), 0.3] })
+                    }
+                }
+                pieces(innerRail, prIn, true)
+                pieces(outerRail, prOut, false)
+
+                // ---- handrail paths: rounded corners, centre 0.90 above the nosing line ---------------
+                // Every sample carries `lam`, the rail parameter it stands for; through a fillet arc lam
+                // advances C1-smoothly, so heights taken as functions of lam keep a continuous slope.
+                const filletPath = (rail, s0, s1, rf) => {
+                    const v = [[plAt(rail, s0), s0]]
+                    rail.p.forEach((p, k) => { if (rail.c[k] > s0 + 1e-6 && rail.c[k] < s1 - 1e-6) v.push([p, rail.c[k]]) })
+                    v.push([plAt(rail, s1), s1])
+                    const out = []
+                    const line = (a, la, b, lb) => {
+                        const L = lb - la, m = Math.max(1, Math.ceil(L / 0.04))
+                        for (let i = 0; i < m; i++) out.push({ p: add(a, sub(b, a), i / m), lam: la + L * i / m })
+                    }
+                    let cur = v[0]
+                    for (let k = 1; k < v.length - 1; k++) {
+                        const [pk, lk] = v[k], a = unit(sub(pk, v[k - 1][0])), b = unit(sub(v[k + 1][0], pk))
+                        const ang = Math.atan2(cr(a, b), dot(a, b))
+                        if (Math.abs(ang) < 1e-3) continue
+                        const t = Math.min(rf * Math.tan(Math.abs(ang) / 2), 0.45 * (lk - v[k - 1][1]), 0.45 * (v[k + 1][1] - lk))
+                        const r = t / Math.tan(Math.abs(ang) / 2), p0 = add(pk, a, -t), La = r * Math.abs(ang)
+                        line(cur[0], cur[1], p0, lk - t)
+                        const c = add(p0, left(a), r * Math.sign(ang)), m = Math.max(4, Math.ceil(La / 0.015))
+                        const a0 = Math.atan2(p0[1] - c[1], p0[0] - c[0]), kk = 2 * t / La - 1
+                        for (let i = 0; i < m; i++) {
+                            const u = La * i / m, th = a0 + ang * i / m
+                            out.push({ p: [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)],
+                                lam: lk - t + u + kk * (u - La / (2 * Math.PI) * Math.sin(2 * Math.PI * u / La)) })
+                        }
+                        cur = [add(pk, b, t), lk + t]
+                    }
+                    line(cur[0], cur[1], v[v.length - 1][0], v[v.length - 1][1])
+                    out.push({ p: v[v.length - 1][0], lam: v[v.length - 1][1] })
+                    return out
+                }
+                // Rail heights are a function of the distance s along the rounded plan path: the line
+                // through the nosings (and a landing's level), eased by the exact raised-cosine average
+                // over ±w of that piecewise-linear line. The average is C2 and rises wherever the nosing
+                // line rises, so the rail can neither dip back nor snake through a turn.
+                const smoothLine = (xs, ys, w) => {
+                    const m = xs.length, sl = []
+                    for (let i = 0; i < m - 1; i++) sl.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]))
+                    const lin = x => {
+                        if (x <= xs[0]) return ys[0] + (x - xs[0]) * sl[0]
+                        if (x >= xs[m - 1]) return ys[m - 1] + (x - xs[m - 1]) * sl[m - 2]
+                        let lo = 0, hi = m - 1
+                        while (hi - lo > 1) { const k = (lo + hi) >> 1; if (xs[k] <= x) lo = k; else hi = k }
+                        return ys[lo] + (x - xs[lo]) * sl[lo]
+                    }
+                    const kinks = []
+                    for (let i = 1; i < m - 1; i++) if (Math.abs(sl[i] - sl[i - 1]) > 1e-9) kinks.push([xs[i], sl[i] - sl[i - 1]])
+                    const k2 = w * w / (Math.PI * Math.PI)
+                    // the averaged ramp max(0, t) minus the ramp itself (zero beyond ±w)
+                    const bend = t => t <= -w || t >= w ? 0 : ((t + w) * (t + w) / 2 - k2 * (1 + Math.cos(Math.PI * t / w))) / (2 * w) - Math.max(0, t)
+                    return x => kinks.reduce((s, [xk, d]) => s + d * bend(x - xk), lin(x))
+                }
+                // Heights along a filleted path from knots given in rail parameter lam (the rail centre at
+                // the nosing line + 0.90). The eased line must never run below the knot line, so the rail
+                // stays at least 0.90 above every nosing: a riser at a turn newel (an isolated steep step
+                // in the line) is moved ahead by w, so the rail completes that rise by the newel — a clean
+                // ramp into it — and then the knots are raised until the eased line clears the knot line.
+                const railOn = (path, xl, y0, w) => {
+                    const S = [0]
+                    for (let i = 1; i < path.length; i++) S.push(S[i - 1] + Math.hypot(path[i].p[0] - path[i - 1].p[0], path[i].p[1] - path[i - 1].p[1]))
+                    const Lm = path.map(q => q.lam), last = Lm.length - 1
+                    const sOf = lam => {
+                        if (lam <= Lm[0]) return lam - Lm[0]
+                        if (lam >= Lm[last]) return S[last] + lam - Lm[last]
+                        let lo = 0, hi = last
+                        while (hi - lo > 1) { const k = (lo + hi) >> 1; if (Lm[k] <= lam) lo = k; else hi = k }
+                        return S[lo] + (S[hi] - S[lo]) * (lam - Lm[lo]) / Math.max(Lm[hi] - Lm[lo], 1e-12)
+                    }
+                    const x0 = xl.map(sOf), m = x0.length
+                    for (let j = 1; j < m; j++) x0[j] = Math.max(x0[j], x0[j - 1] + 0.002)
+                    const knotLine = (xs, ys) => {
+                        const sl = xs.slice(1).map((x, i) => (ys[i + 1] - ys[i]) / (x - xs[i]))
+                        return x => {
+                            if (x <= xs[0]) return ys[0] + (x - xs[0]) * sl[0]
+                            const k = xs.findIndex(v => v >= x)
+                            return k < 0 ? ys[xs.length - 1] + (x - xs[xs.length - 1]) * sl[sl.length - 1] : ys[k - 1] + (x - xs[k - 1]) * sl[k - 1]
+                        }
+                    }
+                    const f = knotLine(x0, y0)
+                    const sl0 = x0.slice(1).map((x, i) => (y0[i + 1] - y0[i]) / (x - x0[i])), s0 = sl0[0]
+                    const xs = [...x0]
+                    let ys = [...y0]
+                    for (let i = 1; i < m - 2; i++) {
+                        if (!(sl0[i] > 2 * Math.max(sl0[i - 1], sl0[i + 1], s0))) continue
+                        const J = y0[i + 1] - y0[i] - s0 * (x0[i + 1] - x0[i]), xj = x0[i] - w, yj = f(xj)
+                        ys = ys.map((v, k) => xs[k] > xj && xs[k] <= x0[i] + 1e-9 ? v + J : v)
+                        const at = Math.max(0, xs.findIndex(x => x > xj))
+                        xs.splice(at, 0, xj - 0.001, xj + 0.001)
+                        ys.splice(at, 0, yj - s0 * 0.001, yj + J + s0 * 0.001)
+                    }
+                    for (let k = 1; k < xs.length; k++) { xs[k] = Math.max(xs[k], xs[k - 1] + 1e-4); ys[k] = Math.max(ys[k], ys[k - 1]) }
+                    let Y = smoothLine(xs, ys, w)
+                    for (let it = 0; it < 40; it++) {
+                        const add = xs.map(x => Math.max(0, f(x) - Y(x)))
+                        for (let k = 0; k < xs.length - 1; k++) {
+                            const xm = (xs[k] + xs[k + 1]) / 2, d = Math.max(0, f(xm) - Y(xm))
+                            add[k] = Math.max(add[k], d); add[k + 1] = Math.max(add[k + 1], d)
+                        }
+                        if (Math.max(...add) <= 2e-4) break
+                        ys = ys.map((v, k) => v + add[k])
+                        for (let k = 1; k < ys.length; k++) ys[k] = Math.max(ys[k], ys[k - 1])
+                        Y = smoothLine(xs, ys, w)
+                    }
+                    return { path: path.map((q, i) => ({ ...q, s: S[i], y: Y(S[i]) })), h: lam => Y(sOf(lam)) }
+                }
+                const sStart = prIn.l0 + NW / 2 - 0.015, sTop = prIn.l1 + NW / 2
+                // the rail runs into the top newel a quarter post deep, below the post's cap
+                const railI = railOn(filletPath(innerRail, sStart, sTop - NW / 4, 0.12), prIn.xs, prIn.ys.map(y => y - cTop + railH), 0.3)
+                const hpIn = railI.path, hrIn = railI.h
+                const innerRailPath = hpIn.map(q => P3(q.p, q.y))
+
+                // ---- newel posts ------------------------------------------------------------------
+                const chamf = (c, a, b, sa, sb) => {   // rectangle c + x·a + y·b, x∈[0,sa], y∈[0,sb], chamfered corners
+                    const e = 0.006, P = (x, y) => add(add(c, a, x), b, y)
+                    return [P(e, 0), P(sa - e, 0), P(sa, e), P(sa, sb - e), P(sa - e, sb), P(e, sb), P(0, sb - e), P(0, e)]
+                }
+                const newelParts = [], newelCaps = [], neckParts = []
+                const capOn = (list, o, a, b, sa, sb, y, k) => {
+                    const e = 0.012, oc = add(add(o, a, -e), b, -e)
+                    list.push(plan(chamf(oc, a, b, sa + 2 * e, sb + 2 * e), y, y + 0.03, 0.006, a, k))
+                }
+                const square = (s, y0, y1, k) => {   // capped post centred on the inner rail
+                    const c = plAt(innerRail, s), a = plDir(innerRail, s), b = left(a)
+                    const o = add(add(c, a, -NW / 2), b, -NW / 2)
+                    newelParts.push(post(chamf(o, a, b, NW, NW), y0, y1, 0.004, k))
+                    capOn(newelCaps, o, a, b, NW, NW, y1, k + 0.7)
+                }
+                const galleryTop = H + railH + 0.1           // every newel on the upper floor ends here
+                square(sStart, 0, hrIn(sStart) + 0.12, 200)
+                // The top newel is notched over the slab edge: above the floor it is NW wide and 1.5 NW
+                // deep (its back half carries the gallery rail on the slab); its front half NW stands in
+                // the void in front of the slab face and runs down to the inner stringer's lower edge at
+                // the post's front face (at the ceiling, or lower where the stringer's slope is still
+                // below it): the stringer ends inside it, nothing hangs below the stringer, and the
+                // post is bolted to the slab face.
+                // Its front face stands 8 mm proud of the nosing line, like the turn newels: the arrival
+                // tread's front edge would otherwise lie in the post's front face and flicker.
+                const pe = 0.008
+                const dropY = Math.min(ceilY, bot(prIn, sTop - NW - pe))
+                {
+                    const c = plAt(innerRail, sTop), a = plDir(innerRail, sTop), b = left(a)
+                    const o = add(add(c, a, -NW - pe), b, -NW / 2), aw = unit(vW(a))
+                    // the drop's depth: 0.5 mm short of the slab face, just past the stringer's end (1 mm
+                    // short), so that end face lies inside the post, not in its back face
+                    const f = NW / 2 + pe - 0.0005
+                    const D = 1.5 * NW + pe
+                    const prof = [[0, dropY], [f, dropY], [f, H], [D, H], [D, galleryTop], [0, galleryTop]]
+                    const ow = toW(add(c, a, -NW - pe))
+                    newelParts.push({ pts: prof, o: [ow[0], 0, ow[1]], e1: [aw[0], 0, aw[1]], e2: [0, 1, 0], z0: -NW / 2, z1: NW / 2, r: 0.006,
+                        uvU: [0, 1 / Su, 0], uvV: [1 / Sv, 0, 0.7 / Sv], uvO: [rnd(201), rnd(201.3)] })
+                    capOn(newelCaps, o, a, b, D, NW, galleryTop, 201.7)
+                }
+                // turn newels sit in the void corner(s), flush with the inner edges. The continuous
+                // handrail runs over them: the post stops below the rail's lowest point above it and a
+                // cap and a short turned neck carry the rail.
+                const corners = pl.inner.slice(1, -1)
+                const turnNewel = (o, a, b, sa, sb, k) => {
+                    const cc = add(add(o, a, sa / 2), b, sb / 2)
+                    const over = hpIn.filter(q => { const d = sub(q.p, cc); return Math.abs(dot(d, a)) <= sa / 2 + 0.03 && Math.abs(dot(d, b)) <= sb / 2 + 0.03 })
+                    const yTop = Math.min(...(over.length ? over : hpIn).map(q => q.y)) - rr - 0.06
+                    // the post stands 8 mm proud of the stringers on every side: their side and end faces
+                    // die inside it instead of lying flush with its faces (coplanar faces flicker)
+                    const po = add(add(o, a, -pe), b, -pe)
+                    newelParts.push(post(chamf(po, a, b, sa + 2 * pe, sb + 2 * pe), 0, yTop, 0.004, k))
+                    capOn(newelCaps, po, a, b, sa + 2 * pe, sb + 2 * pe, yTop, k + 0.7)
+                    const at = sb > sa + 0.05 ? [add(o, a, sa / 2), add(add(o, a, sa / 2), b, sb)] : [cc]
+                    // the necks belong to the railing (they only carry the rail): they go with it
+                    at.forEach((t, i) => {
+                        const q = hpIn.reduce((m, x) => { const d = Math.hypot(x.p[0] - t[0], x.p[1] - t[1]); return d < m.d ? { d, x } : m }, { d: 1e9, x: hpIn[0] }).x
+                        const ring = Array.from({ length: 16 }, (_, j) => add(q.p, [Math.cos(j * Math.PI / 8), Math.sin(j * Math.PI / 8)], 0.019))
+                        neckParts.push(post(ring, yTop + 0.02, q.y, 0, k + 0.3 + i))
+                    })
+                }
+                if (eyeNewel) turnNewel([-NW, 0], [1, 0], [0, 1], NW, pl.eye, 210)
+                else corners.forEach((P, idx) => {
+                    const k = idx + 1, a = unit(sub(pl.inner[k], pl.inner[k - 1])), b = unit(sub(pl.inner[k + 1], pl.inner[k]))
+                    turnNewel(add(P, a, -NW), a, b, NW, NW, 210 + k)
+                })
+
+                // ---- balusters between the newels, centre spacing ≤ balPitch ------------------------
+                const spans = (stopsIn, place) => {
+                    const st = stopsIn.slice().sort((u, v) => u[0] - v[0]), out = []
+                    let gap = 0
+                    for (let k = 0; k < st.length - 1; k++) {
+                        const a = st[k][1], b = st[k + 1][0], L = b - a
+                        if (L <= 0.02) continue
+                        const cnt = Math.max(0, Math.ceil(L / dm.balPitch) - 1), pitch = L / (cnt + 1)
+                        gap = Math.max(gap, pitch - dm.balD)
+                        for (let i = 1; i <= cnt; i++) out.push(place(a + pitch * i))
+                    }
+                    return { out, gap }
+                }
+                const stairStops = [[sStart - NW, sStart + NW / 2], [sTop - NW, sTop + NW]]
+                const rc = innerRail.c
+                if (eyeNewel) stairStops.push([rc[1] - (NW - ts / 2), rc[2] + (NW - ts / 2)])
+                else corners.forEach((_, idx) => stairStops.push([rc[idx + 1] - (NW - ts / 2), rc[idx + 1] + (NW - ts / 2)]))
+                // string capping on the inner stringer between the newels (a flat bar on a steel plate):
+                // the balusters stand in it, not on the bare stringer edge. Seated 3 mm into the board's
+                // top so their faces never coincide; its ends run 4 mm into the newels.
+                // (7 mm proud of the board on each side: the turn newels stand 8 mm proud, so the
+                // capping's sides never lie in their faces)
+                const capW = dm.steel ? 0.03 : ts + 0.014, capH = dm.steel ? 0.008 : 0.025
+                const capTop = s => prIn.top(s) - 0.003 + capH
+                {
+                    const st = stairStops.slice().sort((u, v) => u[0] - v[0])
+                    for (let k = 0; k < st.length - 1; k++) {
+                        const a = st[k][1] - 0.004, b = st[k + 1][0] + 0.004
+                        if (b - a < 0.03) continue
+                        for (let i = 0; i < innerRail.p.length - 1; i++) {
+                            const u0 = Math.max(a, innerRail.c[i]), u1 = Math.min(b, innerRail.c[i + 1])
+                            if (u1 - u0 < 0.02) continue
+                            const ls = [u0, u1, ...prIn.knots.filter(x => x > u0 && x < u1)]
+                            for (let x = u0 + 0.03; x < u1; x += 0.03) ls.push(x)
+                            ls.sort((u, v) => u - v)
+                            const xs = ls.filter((x, j) => j === 0 || x - ls[j - 1] > 1e-4)
+                            const dir = unit(sub(innerRail.p[i + 1], innerRail.p[i])), A0 = add(innerRail.p[i], dir, u0 - innerRail.c[i])
+                            const lo = xs.map(x => [x - u0, prIn.top(x) - 0.003]), hi = xs.map(x => [x - u0, capTop(x)]).reverse()
+                            const dw = unit(vW(dir)), aw = toW(A0)
+                            stringerParts.push({ pts: [...lo, ...hi], strip: true, o: [aw[0], 0, aw[1]], e1: [dw[0], 0, dw[1]], e2: [0, 1, 0],
+                                z0: -capW / 2, z1: capW / 2, r: dm.steel ? 0.001 : 0.004, uvU: [1 / Su, 0, 0], uvV: [0, 1 / Sv, 1 / Sv], uvO: [rnd(k + 300 + i), 0.6] })
+                        }
+                    }
+                }
+                const stairBal = spans(stairStops, s => ({ p: toW(plAt(innerRail, s)), y0: capTop(s) - 0.004, y1: hrIn(s) - rr + 0.004 }))
+
+                // ---- gallery railing around the free edges of the opening on the upper floor --------
+                const gPl = mkPl(pl.gallery)
+                const galleryParts = [], galleryCaps = []
+                gPl.p.slice(1).forEach((p, i) => {
+                    const a = unit(sub(p, gPl.p[i])), b = left(a), o = add(add(p, a, -NW / 2), b, -NW / 2)
+                    galleryParts.push(post(chamf(o, a, b, NW, NW), H, galleryTop, 0.004, 230 + i))
+                    capOn(galleryCaps, o, a, b, NW, NW, galleryTop, 230.7 + i)
+                })
+                const galleryPath = gPl.p.map(p => P3(p, H + railH))
+                // bottom rail between the posts, clear of the floor: the bars stand in it, so only the
+                // posts are fixed through the stone
+                const shoeY0 = H + dm.shoeGap, shoeY1 = shoeY0 + dm.shoeH, sw = dm.shoeW / 2
+                gPl.p.slice(1).forEach((p, i) => {
+                    const a = unit(sub(p, gPl.p[i])), b = left(a)
+                    const s0 = gPl.c[i] + NW / 2, s1 = gPl.c[i + 1] - NW / 2
+                    if (s1 - s0 < 0.02) return
+                    const p0 = plAt(gPl, s0), p1 = plAt(gPl, s1)
+                    galleryParts.push(plan([add(p0, b, -sw), add(p1, b, -sw), add(p1, b, sw), add(p0, b, sw)], shoeY0, shoeY1, 0.003, a, 260 + i))
+                })
+                const galleryBal = spans(gPl.c.map((c, i) => [c - (i ? NW / 2 : 0), c + NW / 2]),
+                    s => ({ p: toW(plAt(gPl, s)), y0: shoeY1 - 0.004, y1: H + railH - rr + 0.004 }))
+                const balusters = stairBal.out, maxGap = Math.max(stairBal.gap, galleryBal.gap)
+
+                // ---- wall handrail: offset from the wall face, rounded corners, returns into the wall.
+                // It runs only along walls that stand (a U stair's cut-away wall carries none) and ends a
+                // return's length plus a margin before a wall's cut end.
+                const wallRailPl = mkPl(offsetPl(pl.outer, dm.wallRailGap - ts - dm.wallGap))
+                const wl = rs.map(r => hitOut(wallRailPl, r, 0).lam)
+                for (let j = 1; j < n; j++) wl[j] = Math.max(wl[j], wl[j - 1] + 0.004)
+                const wxs = [], wys = []
+                wl.forEach((l, j) => {
+                    if (fam === "B" && j === n1 && l - G > wl[j - 1] + 0.01) { wxs.push(l - G); wys.push(n1 * R + railH) }
+                    wxs.push(l); wys.push((j + 1) * R + railH)
+                })
+                const gapW = dm.wallRailGap
+                const okSeg = pl.sides.map(s => pl.wallSides.includes(s))
+                const k0 = okSeg.indexOf(true), k1 = okSeg.lastIndexOf(true), inset = gapW + rr + 0.05
+                const r0 = Math.max(wl[0], k0 > 0 ? wallRailPl.c[k0] + inset : -Infinity)
+                const r1 = Math.min(wl[n - 1], k1 < okSeg.length - 1 ? wallRailPl.c[k1 + 1] - inset : Infinity)
+                const railW = railOn(filletPath(wallRailPl, r0, r1, 0.15), wxs, wys, 0.3)
+                const wp = railW.path, hW = railW.h
+                const ret = (q, dirSign) => {   // quarter-circle return into the wall at an end of the path
+                    const t = unit(plDir(wallRailPl, q.lam)), rn = [t[1], -t[0]], c = add(q.p, rn, gapW)
+                    return Array.from({ length: 7 }, (_, i) => {
+                        const ph = Math.PI / 2 * (dirSign < 0 ? 6 - i : i) / 6
+                        const v = add(add([0, 0], rn, -Math.cos(ph)), t, dirSign * Math.sin(ph))
+                        return { p: add(c, v, gapW), y: q.y }
+                    })
+                }
+                const wpFull = [...ret(wp[0], -1).slice(0, -1), ...wp, ...ret(wp[wp.length - 1], 1).slice(1)]
+                const wallRailPath = wpFull.map(q => P3(q.p, q.y))
+                const brackets = []
+                {
+                    const L = r1 - r0, cnt = Math.max(2, Math.ceil((L - 0.4) / 1.0) + 1)
+                    const corn = wallRailPl.c.slice(1, -1).filter(cc => cc > r0 && cc < r1)
+                    for (let i = 0; i < cnt; i++) {
+                        let s = r0 + 0.2 + (L - 0.4) * i / (cnt - 1)
+                        corn.forEach(cc => { if (Math.abs(s - cc) < 0.25) s = cc + (s < cc ? -0.25 : 0.25) })
+                        s = Math.min(Math.max(s, r0 + 0.12), r1 - 0.12)
+                        const t = plDir(wallRailPl, s), rn = vW([t[1], -t[0]])
+                        brackets.push({ p: P3(plAt(wallRailPl, s), hW(s)), n: unit(rn), gap: gapW })
+                    }
+                }
+
+                // ---- steel fixings: bolt heads on the open side of the inner plate, and a flat bar
+                // (40 × 6) welded to each plate under every tread end that carries the tread -----------
+                const bolts = [], supports = []
+                if (dm.steel) {
+                    for (let k = 1; k < n; k++) {
+                        const a = prIn.lam[k - 1], b = hitIn(innerRail, rs[k], fc).lam, mid = (a + b) / 2, span = b - a
+                        const at = span > 0.16 ? [mid - 0.045, mid + 0.045] : [mid]
+                        at.forEach(s => {
+                            const dir = plDir(innerRail, s), p = add(plAt(innerRail, s), left(dir), ts / 2)
+                            bolts.push({ p: P3(p, k * R - tt / 2), n: unit(vW(left(dir))) })
+                        })
+                    }
+                    const [sw, st] = dm.support
+                    const bar = (P, isIn, a, b, y, k) => {   // split at the boundary's corners
+                        for (let s = 0; s < P.p.length - 1; s++) {
+                            const lo = Math.max(a, P.c[s]), hi = Math.min(b, P.c[s + 1])
+                            if (hi - lo < 0.04) continue
+                            const A0 = plAt(P, lo + 1e-9), B0 = plAt(P, hi - 1e-9), nl = left(unit(sub(P.p[s + 1], P.p[s])))
+                            const e0 = isIn ? 0.001 : -0.001, e1 = isIn ? -sw : sw      // from 1 mm inside the plate toward the tread
+                            supports.push(plan([add(A0, nl, e0), add(B0, nl, e0), add(B0, nl, e1), add(A0, nl, e1)], y - st, y + 0.001, 0, nl, 300 + k))
+                        }
+                    }
+                    const s0 = Math.max(0.03, fc + 0.004)      // behind the riser board under the tread's front
+                    // a tread end is only supported where both of its edge lines really cross that side's
+                    // boundary (a landing's inner side is the newel corner: it has none)
+                    const span = (P, isIn, r0, r1) => {
+                        const f = isIn ? hitIn(P, r0, s0) : hitOut(P, r0, s0), b = isIn ? hitIn(P, r1, fc - 0.02) : hitOut(P, r1, fc - 0.02)
+                        const real = h => !(h.dist === 0 && h.lam === 0)
+                        return real(f) && real(b) && b.lam - f.lam > 0.05 && b.lam - f.lam < 3 ? [f.lam, b.lam] : null
+                    }
+                    for (let k = 1; k < n; k++) {
+                        const y = k * R - tt, si = span(innerB, true, rs[k - 1], rs[k]), so = span(outerB, false, rs[k - 1], rs[k])
+                        if (si) bar(innerB, true, si[0], si[1], y, k)
+                        if (so) bar(outerB, false, so[0], so[1], y, k + 0.5)
+                    }
+                }
+
+                // ---- measured-geometry hooks for the readout ------------------------------------------
+                const walkPl = mkPl(pl.walkExt)
+                const walkS = rs.map(r => plHit(walkPl, r.i, r.d, plAt(walkPl, r.s + pl.X)).lam)
+                const innerS = rs.map(r => hitIn(innerB, r, 0).lam)
+                const nosings = rs.map((r, j) => ({ a: toW(hitIn(innerB, r, 0).pt), b: toW(hitOut(outerB, r, 0).pt), y: (j + 1) * R }))
+                const goings = [], innerGoings = []
+                for (let k = 1; k < n; k++) {
+                    if (fam === "B" && k === n1) continue
+                    goings.push(walkS[k] - walkS[k - 1])
+                    innerGoings.push(innerS[k] - innerS[k - 1])
+                }
+
+                // ---- context in world: rectangles [x0, z0, x1, z1] -------------------------------------
+                const rect = r => { const a = toW([r.p0, r.q0]), b = toW([r.p1, r.q1]); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])] }
+                const orient = pts => pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1] }, 0) < 0 ? pts.slice().reverse() : pts
+                const ctx = {
+                    box: rect(pl.box), slab: rect(pl.slabR), openingExt: rect(pl.openingExt), recesses: pl.recesses.map(rect),
+                    walls: pl.walls.map(rect), wallTop: H + dm.wallUp,
+                    clash: pl.clash.map(q => orient(q.map(toW))),
+                }
+
+                return {
+                    treadParts, treadInfo, riserParts, stringerParts,
+                    newelParts, newelCaps, neckParts, balusters, maxBalusterGap: maxGap,
+                    galleryParts, galleryCaps, galleryPath, galleryBalusters: galleryBal.out,
+                    innerRailPath, wallRailPath, brackets, bolts, supports, riserBars,
+                    goings, innerGoings, nosings,
+                    opening: rect(pl.opening), box: ctx.box, ctx,
+                    landingDepth: fam === "B" ? pl.back : null,
+                }
+
+    render:
+        expression: |
+            const pl = assets.plan
+            return {
+                ...assets.parts,
+                steps: pl.steps, dims: assets.dims, rules: assets.rules,
+                winders: pl.fam === "A" && pl.at > 0, family: pl.fam, n1: pl.n1, flags: pl.flags,
+                openingSize: pl.openingSize, openingAuto: pl.openingAuto, openingReserve: pl.reserve, openingSuggest: pl.suggest,
+                H: params.floor_height, slabT: params.slab_thickness, W: params.stair_width,
+            }
+main.moon.webp: !!binary |
+    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
+    42JvKAAAAAAAAA==
