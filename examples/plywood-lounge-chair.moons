@@ -1,0 +1,1601 @@
+# moons v1
+main.moon: |
+    moon: "1.0"
+    doc: |
+        Moulded plywood lounge chair, 1946-50, after museum photos of one chair:
+        67 cm high, 55.5 cm wide, 64 cm deep, the seat 39 cm high at its front corners.
+        Five pieces of plywood: a seat and a backrest shell pressed into double curves, a
+        spine bent from one strip that carries both, and two arches that form the front
+        and rear legs. The shells sit on black rubber shock mounts; the screws follow the
+        early 5-2-5-2 pattern (five through each leg crossbar, two for the seat, two for
+        the backrest). The wood is aged ash veneer, with the plies showing on every edge.
+        Meters, Y up. The chair faces +Z, is centered on X and stands on the floor at
+        Y = 0; Z = 0 is the center of the seat.
+    params:
+        wood_tint:
+            default: [1, 1, 1, 1]
+            doc: Stain on the wood; white is the aged natural ash of the chair in the photos.
+            kind: color
+            category: Finish
+    assets:
+        # Shared measurements. The side profile of the spine fixes where everything sits:
+        # both crossbars lie under it, the seat lies parallel to its front stretch and the
+        # backrest parallel to its upright end, each one shock mount away.
+        dims:
+            expression: |
+                const deg = Math.PI / 180
+                const spine = 0.0145, arch = 0.0175, shell = 0.008, pad = 0.016
+                const tilt = 8                                 // seat and front of the spine, degrees
+                const lean = 17                                // backrest and top of the spine, degrees
+                const rearZ = -0.25, frontZ = 0.135            // centers of the two crossbars
+                const rearTop = 0.248                          // top face of the rear crossbar
+                const crossbar = 0.072                         // depth of the crossbars, front to back
+
+                // Centerline of the spine as [z, y] corners, from the front end to the top.
+                const low = rearTop + spine / 2
+                const stepLow = [rearZ + 0.095, low]
+                const stepHigh = [stepLow[0] + 0.055 / Math.tan(40 * deg), low + 0.055]
+                const under = z => stepHigh[1] + (z - stepHigh[0]) * Math.tan(tilt * deg)
+                const frontEnd = frontZ + crossbar / 2 * Math.cos(tilt * deg) + 0.008
+                const bend = 0.04
+                const upZ = rearZ - crossbar / 2 - bend
+                const leanFrom = 0.4, topY = 0.563
+                const top = [upZ - (topY - leanFrom) * Math.tan(lean * deg), topY]
+                const corners = [[frontEnd, under(frontEnd)], stepHigh, stepLow, [upZ, low], [upZ, leanFrom], top]
+                const radii = [0.05, 0.05, bend, 0.25]
+
+                // Seat: its middle layer is one spine half, a mount and a shell half above
+                // the spine's centerline.
+                const gap = spine / 2 + pad + shell / 2
+                const seat = [0, under(0) + gap / Math.cos(tilt * deg), 0]
+
+                // Backrest: lies flat in its own frame and is turned up by `turn` about X.
+                // Its mount is centered `mountDown` below the top of the spine.
+                const turn = 90 - lean
+                const mountDown = 0.028, mountZ = -0.01
+                const c = Math.cos(turn * deg), s = Math.sin(turn * deg)
+                const behind = [top[0] + Math.sin(lean * deg) * mountDown, top[1] - Math.cos(lean * deg) * mountDown]
+                const back = [0, behind[1] - (-gap * c - mountZ * s), behind[0] - (-gap * s + mountZ * c)]
+
+                return {
+                    spine, arch, shell, pad, tilt, turn, crossbar,
+                    corners, radii,
+                    seat, seatMountZ: -0.06,
+                    back, mountZ,
+                    // Depth of the frame's rear face below a shell's middle layer.
+                    frame: shell / 2 + pad + spine,
+                    rear: [0, rearTop, rearZ],
+                    front: [0, under(frontZ) - spine / 2 / Math.cos(tilt * deg), frontZ],
+                }
+
+        # ── MATERIALS ──
+        ash:
+            use:
+                import: ./parts/ash.moon
+            with:
+                tint:
+                    param: wood_tint
+        ply_edge:
+            use:
+                import: ./parts/ply-edge.moon
+            with:
+                tint:
+                    param: wood_tint
+        screw_metal:
+            op: Material
+            with:
+                color: [0.66, 0.63, 0.52, 1]
+                roughness: 0.45
+                metallic: 1
+
+        # ── FRAME ──
+        spine:
+            use:
+                import: ./parts/spine.moon
+            with:
+                corners:
+                    expression: |
+                        assets.dims.corners
+                radii:
+                    expression: |
+                        assets.dims.radii
+                thickness:
+                    expression: |
+                        assets.dims.spine
+                wood:
+                    asset: ash
+                edge:
+                    asset: ply_edge
+        # The front legs lean forward with the spine above them; their rear edges rake back.
+        front_legs:
+            pipe:
+              - use:
+                    import: ./parts/leg-arch.moon
+                with:
+                    drop:
+                        expression: |
+                            assets.dims.front[1]
+                    pitch:
+                        expression: |
+                            -assets.dims.tilt
+                    depth:
+                        expression: |
+                            assets.dims.crossbar
+                    foot: [-0.006, 0.02]
+                    thickness:
+                        expression: |
+                            assets.dims.arch
+                    uv_offset: [0.29, 0.13]
+                    wood:
+                        asset: ash
+                    edge:
+                        asset: ply_edge
+                    screw_metal:
+                        asset: screw_metal
+              - op: Transform
+                with:
+                    translate:
+                        expression: |
+                            assets.dims.front
+        # The rear legs stand upright under the flat end of the spine and kick back.
+        rear_legs:
+            pipe:
+              - use:
+                    import: ./parts/leg-arch.moon
+                with:
+                    drop:
+                        expression: |
+                            assets.dims.rear[1]
+                    depth:
+                        expression: |
+                            assets.dims.crossbar
+                    foot: [-0.049, -0.021]
+                    thickness:
+                        expression: |
+                            assets.dims.arch
+                    uv_offset: [0.63, 0.47]
+                    wood:
+                        asset: ash
+                    edge:
+                        asset: ply_edge
+                    screw_metal:
+                        asset: screw_metal
+              - op: Transform
+                with:
+                    translate:
+                        expression: |
+                            assets.dims.rear
+
+        # ── SHELLS ── each with its shock mount and the two screws that reach it through
+        # the spine, assembled flat and then tipped into place as one.
+        seat_mount:
+            pipe:
+              - use:
+                    import: ./parts/shock-mount.moon
+                with:
+                    size: [0.115, 0.06]
+                    thickness:
+                        expression: |
+                            assets.dims.pad + 0.001
+              - op: Transform
+                with:
+                    translate:
+                        expression: |
+                            [0, -(assets.dims.shell + assets.dims.pad) / 2, assets.dims.seatMountZ]
+        seat_screws:
+            op: Place
+            with:
+                positions:
+                    expression: |
+                        [-0.0375, 0.0375].map(x => [x, -assets.dims.frame, assets.dims.seatMountZ])
+            input:
+                pipe:
+                  - use:
+                        import: ./parts/screw.moon
+                    with:
+                        material:
+                            asset: screw_metal
+                  - op: Transform
+                    with:
+                        rotate: [180, 0, 0]
+        seat:
+            pipe:
+              - group:
+                  - use:
+                        import: ./parts/seat.moon
+                    with:
+                        thickness:
+                            expression: |
+                                assets.dims.shell
+                        wood:
+                            asset: ash
+                        edge:
+                            asset: ply_edge
+                  - asset: seat_mount
+                  - asset: seat_screws
+              - op: Transform
+                with:
+                    rotate:
+                        expression: |
+                            [-assets.dims.tilt, 0, 0]
+                    translate:
+                        expression: |
+                            assets.dims.seat
+        back_mount:
+            pipe:
+              - use:
+                    import: ./parts/shock-mount.moon
+                with:
+                    size: [0.112, 0.07]
+                    thickness:
+                        expression: |
+                            assets.dims.pad + 0.004
+              - op: Transform
+                with:
+                    translate:
+                        expression: |
+                            [0, -(assets.dims.shell + assets.dims.pad) / 2 + 0.0015, assets.dims.mountZ]
+        back_screws:
+            op: Place
+            with:
+                positions:
+                    expression: |
+                        [-0.034, 0.034].map(x => [x, -assets.dims.frame, assets.dims.mountZ])
+            input:
+                pipe:
+                  - use:
+                        import: ./parts/screw.moon
+                    with:
+                        diameter: 0.0095
+                        washer: true
+                        material:
+                            asset: screw_metal
+                  - op: Transform
+                    with:
+                        rotate: [180, 0, 0]
+        backrest:
+            pipe:
+              - group:
+                  - use:
+                        import: ./parts/backrest.moon
+                    with:
+                        thickness:
+                            expression: |
+                                assets.dims.shell
+                        wood:
+                            asset: ash
+                        edge:
+                            asset: ply_edge
+                  - asset: back_mount
+                  - asset: back_screws
+              - op: Transform
+                with:
+                    rotate:
+                        expression: |
+                            [assets.dims.turn, 0, 0]
+                    translate:
+                        expression: |
+                            assets.dims.back
+    render:
+        group:
+          - asset: spine
+          - asset: front_legs
+          - asset: rear_legs
+          - asset: seat
+          - asset: backrest
+parts/ash.moon: |
+    moon: "1.0"
+    doc: |
+        Aged, lacquered ash face veneer as a MATERIAL: honey-orange wood with the dark,
+        open-pored growth lines of ash, straight and close together as on rotary-cut veneer.
+        The texture is procedural and tileable (every frequency is a whole number of periods
+        per tile). The grain lines run along texture U.
+    params:
+        tint:
+            default: [1, 1, 1, 1]
+            doc: Stain multiplied onto the wood texture (linear RGBA); white leaves it as aged ash.
+            kind: color
+        pixels:
+            default: 768
+            doc: Texture resolution, in pixels per side.
+        tile:
+            default: 0.3
+            doc: Edge length of one texture tile on the wood, in meters.
+        roughness:
+            default: 0.56
+            doc: Surface roughness of the worn lacquer, 0 to 1.
+    assets:
+        grain:
+            expression: |
+                const n = params.pixels, tau = 2 * Math.PI
+                const [xi, yi] = Coords({ shape: [n, n] })
+                const u = xi / n, v = yi / n
+                // Growth lines: straight across V, only slightly bent, a few millimetres apart.
+                const warp = Sin((u + v * 2) * tau + 0.6) * 0.3
+                    + Sin((u * 2 - v * 3) * tau + 2.1) * 0.16
+                    + Sin((u * 3 + v * 7) * tau + 4.0) * 0.08
+                    + Sin((u - v * 13) * tau + 1.3) * 0.06
+                const line = ((Sin((v * 72 + warp) * tau) + 1) / 2) ** 4
+                // The lines are rows of open pores: short dark dashes, different on every line.
+                const dash = 0.62
+                    + Sin((u * 19 + Sin((v * 23 + u) * tau) * 2.2) * tau) * 0.2
+                    + Sin((u * 43 + Sin((v * 37 - u * 2) * tau) * 3.1) * tau + 1.9) * 0.18
+                // Every other line or so is weaker, as the rings vary in width.
+                const weight = 0.7 + Sin((v * 9 + warp * 0.3) * tau + 0.8) * 0.2 + Sin((v * 17) * tau + 2.6) * 0.1
+                // Fine fibres along the grain and broad bands of tone across it.
+                const fibre = Sin((v * 211 + Sin((u * 3 + v * 5) * tau) * 1.2) * tau) * 0.5
+                    + Sin((v * 137 - u * 2) * tau + 0.7) * 0.5
+                const band = Sin((v * 2 + Sin(u * tau) * 0.15) * tau + 3.3) * 0.5
+                    + Sin((v * 5 + u) * tau + 5.0) * 0.3
+                    + Sin((v * 3 - u * 2) * tau + 1.1) * 0.2
+                const t = Clamp({
+                    input: line * dash * weight * 1.05 + fibre * 0.05 + band * 0.1 + 0.14,
+                    min: 0,
+                    max: 1,
+                })
+                const early = Data([0.5, 0.215, 0.062])
+                const pores = Data([0.12, 0.042, 0.012])
+                const field = Mix({ input: early, target: pores, t: Reshape({ input: t, newShape: [n, n, 1] }) })
+                return Image({ input: field, transfer: "srgb" })
+            produces: IMAGE
+    render:
+        op: Material
+        with:
+            color:
+                asset: grain
+            textureSizeInMeters:
+                param: tile
+            colorFactor:
+                param: tint
+            roughnessFactor:
+                param: roughness
+            metallicFactor: 0
+            clearcoatFactor: 0.12
+            clearcoatRoughnessFactor: 0.4
+parts/backrest.moon: |
+    moon: "1.0"
+    doc: |
+        The backrest shell of the lounge chair: five-ply moulded plywood, 445 mm wide and
+        275 mm high, a rounded rectangle that narrows toward the bottom. It wraps around
+        the sitter's back (the sides come forward) and its top and bottom edges bend away.
+        It lies flat here, like the seat: on the X-Z plane with its middle layer through
+        the origin, the face toward the sitter up (+Y) and its top edge toward -Z, so the
+        grain runs from top to bottom. Turn it about X to stand it up.
+    params:
+        thickness:
+            default: 0.008
+            doc: Thickness of the plywood, in meters.
+        wood:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the plywood edge.
+    assets:
+        outline:
+            use:
+                import: ./closed-curve.moon
+            with:
+                # [x, z], from the middle of the top edge (-Z) around one side to the bottom.
+                points:
+                  - [0, -0.1375]
+                  - [0.09, -0.1375]
+                  - [0.16, -0.136]
+                  - [0.198, -0.124]
+                  - [0.2185, -0.097]
+                  - [0.2225, -0.06]
+                  - [0.219, -0.015]
+                  - [0.211, 0.03]
+                  - [0.199, 0.07]
+                  - [0.18, 0.105]
+                  - [0.15, 0.128]
+                  - [0.11, 0.1365]
+                  - [0.055, 0.1375]
+                  - [0, 0.1375]
+                count: 220
+        mould:
+            doc: |
+                Height of the backrest's middle layer at [x, z] points, in meters.
+            params:
+                points: [[0, 0]]
+                wrap:
+                    default: 0.042
+                    doc: How far the side edges come forward of the middle, in meters.
+                roll:
+                    default: 0.009
+                    doc: How far the top and bottom edges bend away from the sitter, in meters.
+            render:
+                expression: |
+                    const clamp = v => Math.min(1, Math.max(0, v))
+                    return params.points.map(p => {
+                        const x = p[0], v = -p[1]
+                        const wrap = params.wrap * (x / 0.2225) ** 2
+                        const roll = -params.roll * (v / 0.1375) ** 2
+                        // The lower third tucks back a little more.
+                        const b = clamp((-v - 0.03) / 0.11)
+                        return wrap + roll - 0.01 * b * b
+                    })
+    render:
+        use:
+            import: ./molded-panel.moon
+        with:
+            outline:
+                asset: outline
+            mould:
+                asset: mould
+            thickness:
+                param: thickness
+            rings: 32
+            uv_offset: [0.41, 0.23]
+            face_material:
+                param: wood
+            edge_material:
+                param: edge
+parts/bent-ply.moon: |
+    moon: "1.0"
+    doc: |
+        A strip of plywood bent along a path, as a mesh computed from data: the part a
+        press makes from a stack of veneers, such as a chair leg or a spine.
+        The path is the strip's centerline, a dense polyline in the X-Y plane. The strip
+        has a constant thickness across the path and its width lies along Z; the two long
+        edges are given per path point, so the strip can taper. The four long edges are
+        slightly rounded. Each end is cut square, or by a plane, and its corners can be
+        rounded as seen on the face.
+        The two faces carry the face material with the grain along the path; the long
+        edges and the ends carry the edge material, which shows the plies.
+    params:
+        path:
+            default: [[0, 0], [0.1, 0], [0.2, 0]]
+            doc: Centerline as [x, y] points in meters, closely spaced on curves.
+        edges:
+            default: [[-0.03, 0.03], [-0.03, 0.03], [-0.03, 0.03]]
+            doc: The Z position of the two long edges at each path point, in meters.
+        thickness:
+            default: 0.015
+            doc: Thickness of the plywood, in meters.
+        plies:
+            default: 11
+            doc: Number of veneers visible on the edges.
+        edge_radius:
+            default: 0.0015
+            doc: Radius of the sanded long edges, in meters.
+        start_round:
+            default: 0
+            doc: Radius that rounds the two corners of the start end, seen on the face, in meters.
+        end_round:
+            default: 0
+            doc: Radius that rounds the two corners of the far end, seen on the face, in meters.
+        start_plane:
+            default: [0, 0, 0, 0, 0, 0]
+            doc: Plane that cuts the start end, as a point and a normal [px, py, pz, nx, ny, nz]; a zero normal cuts square.
+        end_plane:
+            default: [0, 0, 0, 0, 0, 0]
+            doc: Plane that cuts the far end, as a point and a normal; a zero normal cuts square.
+        cut_blend:
+            default: 0.06
+            doc: Length over which a plane cut is blended back into the square sections, in meters.
+        face_tile:
+            default: 0.3
+            doc: Edge length of one tile of the face texture, in meters.
+        uv_offset:
+            default: [0, 0]
+            doc: Shift of the face texture, in tiles, so two parts show different grain.
+        face_material:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge_material:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the edges and ends.
+    render:
+        expression: |
+            const P0 = params.path.map(p => [p[0], p[1]])
+            const E0 = params.edges.map(e => [e[0], e[1]])
+            const n0 = P0.length
+            const T = params.thickness
+            const r = Math.min(params.edge_radius, T / 2 - 1e-4)
+            const h = T / 2 - r
+
+            // Arc length of the given path, and a sampler along it.
+            const S0 = [0]
+            for (let i = 1; i < n0; i++) {
+                S0.push(S0[i - 1] + Math.hypot(P0[i][0] - P0[i - 1][0], P0[i][1] - P0[i - 1][1]))
+            }
+            const L = S0[n0 - 1]
+            const at = sv => {
+                let i = 1
+                while (i < n0 - 1 && S0[i] < sv) i++
+                const f = Math.min(1, Math.max(0, (sv - S0[i - 1]) / Math.max(S0[i] - S0[i - 1], 1e-12)))
+                const mix = (a, b) => a + (b - a) * f
+                return [mix(P0[i - 1][0], P0[i][0]), mix(P0[i - 1][1], P0[i][1]),
+                    mix(E0[i - 1][0], E0[i][0]), mix(E0[i - 1][1], E0[i][1])]
+            }
+
+            // Stations: the given points, plus close ones where an end is rounded or cut.
+            const planes = [params.start_plane.map(v => v), params.end_plane.map(v => v)]
+            const cut = planes.map(p => Math.hypot(p[3], p[4], p[5]) > 1e-9)
+            const round = [params.start_round, params.end_round]
+            const D = params.cut_blend
+            let stations = S0.slice()
+            for (let e = 0; e < 2; e++) {
+                const from = d => e === 0 ? d : L - d
+                if (round[e] > 0) {
+                    for (let j = 1; j <= 6; j++) stations.push(from(round[e] * (1 - Math.cos(j * Math.PI / 12))))
+                }
+                if (cut[e]) for (let j = 1; j <= 10; j++) stations.push(from(D * j / 10))
+            }
+            stations = stations.filter(s => s >= 0 && s <= L).sort((a, b) => a - b)
+            const S = [0]
+            for (const s of stations) if (s - S[S.length - 1] > 2e-4 && L - s > 2e-4) S.push(s)
+            S.push(L)
+            const N = S.length
+
+            // Each station: center, tangent, normal in the bending plane, and the two edges
+            // (pulled in near a rounded end).
+            const inset = (re, d) => re <= 0 || d >= re ? 0 : re - Math.sqrt(re * re - (re - d) * (re - d))
+            const raw = S.map(at)
+            const frame = []
+            for (let i = 0; i < N; i++) {
+                const a = raw[Math.max(i - 1, 0)], b = raw[Math.min(i + 1, N - 1)]
+                let tx = b[0] - a[0], ty = b[1] - a[1]
+                const tl = Math.hypot(tx, ty)
+                tx /= tl; ty /= tl
+                const pull = inset(round[0], S[i]) + inset(round[1], L - S[i])
+                frame.push({ c: [raw[i][0], raw[i][1]], t: [tx, ty], n: [-ty, tx], w0: raw[i][2] + pull, w1: raw[i][3] - pull })
+            }
+
+            // Cross-section: a rounded rectangle as 16 [n, w] points, n across the thickness
+            // and w along Z. Points 0-7 are one face with its two rounded edges, 8-15 the other;
+            // the flat edges lie between 7 and 8 and between 15 and 0.
+            const K = 16
+            const section = (w0, w1) => {
+                const loop = []
+                const arc = (cn, cw, a0) => {
+                    for (let j = 0; j <= 3; j++) {
+                        const a = a0 + j * Math.PI / 6
+                        loop.push([cn + r * Math.cos(a), cw + r * Math.sin(a)])
+                    }
+                }
+                arc(h, w0 + r, -Math.PI / 2)
+                arc(h, w1 - r, 0)
+                arc(-h, w1 - r, Math.PI / 2)
+                arc(-h, w0 + r, Math.PI)
+                return loop
+            }
+            const loops = frame.map(f => section(f.w0, f.w1))
+
+            // A plane cut slides every point of the end section along the end tangent onto
+            // the plane; the slide fades out over the blend length.
+            const slide = (e, i, k) => {
+                if (!cut[e]) return 0
+                const d = e === 0 ? S[i] : L - S[i]
+                if (d >= D) return 0
+                const f = frame[e === 0 ? 0 : N - 1], pl = planes[e]
+                const [nn, w] = loops[i][k]
+                const x = f.c[0] + nn * f.n[0], y = f.c[1] + nn * f.n[1]
+                const t = ((pl[0] - x) * pl[3] + (pl[1] - y) * pl[4] + (pl[2] - w) * pl[5])
+                    / (f.t[0] * pl[3] + f.t[1] * pl[4])
+                const q = d / D
+                return t * (1 - q * q * (3 - 2 * q))
+            }
+            const X = []
+            for (let i = 0; i < N; i++) {
+                const f = frame[i], row = []
+                for (let k = 0; k < K; k++) {
+                    const [nn, w] = loops[i][k]
+                    const s0 = slide(0, i, k), s1 = slide(1, i, k)
+                    const f0 = frame[0], f1 = frame[N - 1]
+                    row.push([
+                        f.c[0] + nn * f.n[0] + s0 * f0.t[0] + s1 * f1.t[0],
+                        f.c[1] + nn * f.n[1] + s0 * f0.t[1] + s1 * f1.t[1],
+                        w,
+                    ])
+                }
+                X.push(row)
+            }
+
+            // Normals from the grid itself, so tapers and cuts shade correctly.
+            const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+            const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+            const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+            const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l] }
+            const normal = []
+            for (let i = 0; i < N; i++) {
+                const f = frame[i], row = []
+                const mid = [f.c[0], f.c[1], (f.w0 + f.w1) / 2]
+                for (let k = 0; k < K; k++) {
+                    const along = sub(X[Math.min(i + 1, N - 1)][k], X[Math.max(i - 1, 0)][k])
+                    const around = sub(X[i][(k + 1) % K], X[i][(k + K - 1) % K])
+                    let nv = unit(cross(along, around))
+                    if (dot(nv, sub(X[i][k], mid)) < 0) nv = [-nv[0], -nv[1], -nv[2]]
+                    row.push(nv)
+                }
+                normal.push(row)
+            }
+
+            // Meshes are collected as vertices with normals and UVs; triangles are wound to
+            // face along their vertex normals.
+            const builder = () => {
+                const m = { vertices: [], normals: [], materialUVs: [], triangles: [] }
+                m.add = (p, nv, uv) => { m.vertices.push(p); m.normals.push(nv); m.materialUVs.push(uv); return m.vertices.length - 1 }
+                m.tri = (a, b, c) => {
+                    const g = cross(sub(m.vertices[b], m.vertices[a]), sub(m.vertices[c], m.vertices[a]))
+                    if (Math.hypot(g[0], g[1], g[2]) < 1e-14) return
+                    const s = [0, 1, 2].map(j => m.normals[a][j] + m.normals[b][j] + m.normals[c][j])
+                    if (dot(g, s) >= 0) m.triangles.push([a, b, c]); else m.triangles.push([a, c, b])
+                }
+                m.quad = (a, b, c, d) => { m.tri(a, b, c); m.tri(a, c, d) }
+                m.record = () => ({ vertices: m.vertices, normals: m.normals, materialUVs: m.materialUVs, triangles: m.triangles })
+                return m
+            }
+
+            // Faces: grain along the path (U), the width across it (V).
+            const tile = params.face_tile, off = params.uv_offset.map(v => v)
+            const faces = builder()
+            for (let i = 0; i < N; i++) {
+                for (let k = 0; k < K; k++) {
+                    const w = loops[i][k][1]
+                    faces.add(X[i][k], normal[i][k], [S[i] / tile + off[0], (k < 8 ? w : 0.31 - w) / tile + off[1]])
+                }
+            }
+            for (let i = 0; i < N - 1; i++) {
+                for (let k = 0; k < K; k++) {
+                    if (k === 7 || k === 15) continue
+                    faces.quad(i * K + k, (i + 1) * K + k, (i + 1) * K + k + 1, i * K + k + 1)
+                }
+            }
+
+            // Edges: the plies run along the path, stacked across the thickness.
+            const edgeTile = 0.05, stack = params.plies / 2
+            const plyV = nn => (0.5 - nn / T) * stack
+            const edges = builder()
+            for (const [ka, kb] of [[7, 8], [15, 0]]) {
+                const first = edges.vertices.length
+                for (let i = 0; i < N; i++) {
+                    edges.add(X[i][ka], normal[i][ka], [S[i] / edgeTile, plyV(loops[i][ka][0])])
+                    edges.add(X[i][kb], normal[i][kb], [S[i] / edgeTile, plyV(loops[i][kb][0])])
+                }
+                for (let i = 0; i < N - 1; i++) {
+                    const a = first + i * 2
+                    edges.quad(a, a + 2, a + 3, a + 1)
+                }
+            }
+            // Ends: a fan over the end section, flat-shaded, plies across the thickness.
+            for (const i of [0, N - 1]) {
+                const center = [0, 1, 2].map(j => X[i].reduce((s, p) => s + p[j], 0) / K)
+                let nv = [0, 0, 0]
+                for (let k = 0; k < K; k++) {
+                    const g = cross(sub(X[i][k], center), sub(X[i][(k + 1) % K], center))
+                    nv = [nv[0] + g[0], nv[1] + g[1], nv[2] + g[2]]
+                }
+                nv = unit(nv)
+                const out = i === 0 ? [-frame[0].t[0], -frame[0].t[1], 0] : [frame[i].t[0], frame[i].t[1], 0]
+                if (dot(nv, out) < 0) nv = [-nv[0], -nv[1], -nv[2]]
+                const mid = (frame[i].w0 + frame[i].w1) / 2
+                const c = edges.add(center, nv, [mid / edgeTile, plyV(0)])
+                const ring = []
+                for (let k = 0; k < K; k++) ring.push(edges.add(X[i][k], nv, [loops[i][k][1] / edgeTile, plyV(loops[i][k][0])]))
+                for (let k = 0; k < K; k++) edges.tri(c, ring[k], ring[(k + 1) % K])
+            }
+
+            return Group([
+                ApplyMaterial({ input: Mesh(faces.record()), material: params.face_material }),
+                ApplyMaterial({ input: Mesh(edges.record()), material: params.edge_material }),
+            ])
+        produces: MESHES
+parts/closed-curve.moon: |
+    moon: "1.0"
+    doc: |
+        A smooth closed outline, symmetric about the Y axis of its plane, as a list of
+        evenly spaced [x, y] points. One half is given as control points from the axis
+        around to the axis again; the curve passes through them and their mirror images
+        (a centripetal Catmull-Rom spline, which does not overshoot between uneven points).
+    params:
+        points:
+            default: [[0, 1], [0.7, 0.7], [1, 0], [0.7, -0.7], [0, -1]]
+            doc: Control points of the half with x >= 0; the first and last lie on the axis.
+        count:
+            default: 200
+            doc: Number of points returned.
+    render:
+        expression: |
+            const half = params.points.map(p => [p[0], p[1]])
+            const ctrl = half.slice()
+            for (let i = half.length - 2; i >= 1; i--) ctrl.push([-half[i][0], half[i][1]])
+            const n = ctrl.length
+            const knot = (a, b) => Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1]))
+            const mix = (a, b, ta, tb, t) => [
+                a[0] + (b[0] - a[0]) * (t - ta) / (tb - ta),
+                a[1] + (b[1] - a[1]) * (t - ta) / (tb - ta),
+            ]
+            const dense = []
+            const per = 24
+            for (let i = 0; i < n; i++) {
+                const p0 = ctrl[(i + n - 1) % n], p1 = ctrl[i], p2 = ctrl[(i + 1) % n], p3 = ctrl[(i + 2) % n]
+                const t1 = knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3)
+                for (let j = 0; j < per; j++) {
+                    const t = t1 + (t2 - t1) * j / per
+                    const a1 = mix(p0, p1, 0, t1, t), a2 = mix(p1, p2, t1, t2, t), a3 = mix(p2, p3, t2, t3, t)
+                    const b1 = mix(a1, a2, 0, t2, t), b2 = mix(a2, a3, t1, t3, t)
+                    dense.push(mix(b1, b2, t1, t2, t))
+                }
+            }
+            // Resample at even arc length.
+            const m = dense.length
+            const s = [0]
+            for (let i = 1; i <= m; i++) {
+                const a = dense[i - 1], b = dense[i % m]
+                s.push(s[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]))
+            }
+            const out = []
+            let k = 1
+            for (let i = 0; i < params.count; i++) {
+                const target = s[m] * i / params.count
+                while (s[k] < target) k++
+                const f = (target - s[k - 1]) / (s[k] - s[k - 1])
+                const a = dense[k - 1], b = dense[k % m]
+                out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f])
+            }
+            return out
+parts/leg-arch.moon: |
+    moon: "1.0"
+    doc: |
+        A pair of chair legs bent from one strip of plywood: a flat crossbar that turns
+        down into a splayed, tapering leg at each end. Five screws through the crossbar
+        hold it to the part above, and each foot stands on a steel glide.
+        The origin is the center of the crossbar's top face; X runs across the chair, Z
+        to the front. `pitch` tips the whole piece about X (negative brings the feet
+        forward); the feet are cut level with the floor whatever the pitch, `drop` below
+        the origin.
+    params:
+        top_span:
+            default: 0.358
+            doc: Width across the two bends, between the points where the centerlines of crossbar and legs would meet, in meters.
+        foot_span:
+            default: 0.456
+            doc: Distance between the centers of the two feet, in meters.
+        drop:
+            default: 0.3
+            doc: Height of the crossbar's top face above the floor, in meters.
+        pitch:
+            default: 0
+            doc: Tilt of the piece about X, in degrees; negative brings the feet forward.
+        depth:
+            default: 0.072
+            doc: Width of the strip at the crossbar, front to back, in meters.
+        foot:
+            default: [-0.013, 0.013]
+            doc: Z position of the rear and front edge of each leg at the foot, before the pitch, in meters.
+        bend_radius:
+            default: 0.05
+            doc: Radius of the two bends at the centerline, in meters.
+        thickness:
+            default: 0.0175
+            doc: Thickness of the plywood, in meters.
+        plies:
+            default: 13
+            doc: Number of veneers visible on the edges.
+        screws:
+            default: [[-0.048, -0.02], [0.048, -0.02], [0, 0], [-0.048, 0.02], [0.048, 0.02]]
+            doc: Screw positions on the crossbar as [x, z], in meters.
+        glide_height:
+            default: 0.003
+            doc: Height of the steel glides under the feet, in meters.
+        uv_offset:
+            default: [0, 0]
+            doc: Shift of the wood texture, in tiles.
+        wood:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the plywood edges.
+        steel:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.29, 0.27, 1]
+                    roughness: 0.5
+                    metallic: 1
+            doc: Material of the glides.
+        screw_metal:
+            default:
+                op: Material
+                with:
+                    color: [0.62, 0.6, 0.52, 1]
+                    roughness: 0.42
+                    metallic: 1
+            doc: Material of the screws.
+    assets:
+        # Geometry before the pitch: the centerline lies in the X-Y plane, the crossbar's
+        # top face at Y = 0, and the foot plane is the floor seen from the tipped piece.
+        layout:
+            expression: |
+                const a = params.pitch * Math.PI / 180, t = params.thickness
+                const xc = params.top_span / 2, xf = params.foot_span / 2
+                const feet = params.foot.map(v => v)
+                const zm = (feet[0] + feet[1]) / 2
+                const wood = params.drop - params.glide_height
+                const H = (wood - zm * Math.sin(a)) / Math.cos(a)
+                const corners = [[-xf, -H], [-xc, -t / 2], [xc, -t / 2], [xf, -H]]
+                // Length of the straight part of a leg, from the foot to where the bend starts.
+                const leg = Math.hypot(xf - xc, H - t / 2)
+                const phi = Math.PI - Math.atan2(H - t / 2, xf - xc)
+                const straight = leg - params.bend_radius / Math.tan(phi / 2)
+                const plane = [0, -H, zm, 0, Math.cos(a), -Math.sin(a)]
+                // Foot centers after the pitch, where the glides go.
+                const y = -H * Math.cos(a) - zm * Math.sin(a), z = -H * Math.sin(a) + zm * Math.cos(a)
+                return { corners, straight, plane, feet, glides: [[-xf, y, z], [xf, y, z]] }
+        centerline:
+            use:
+                import: ./rounded-path.moon
+            with:
+                points:
+                    expression: |
+                        assets.layout.corners
+                radii:
+                    expression: |
+                        [params.bend_radius, params.bend_radius]
+                step: 0.008
+        # Full width over the crossbar and through the bends, then an eased taper to the foot.
+        edges:
+            expression: |
+                const P = assets.centerline.map(p => [p[0], p[1]])
+                const S = [0]
+                for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]))
+                const L = S[S.length - 1], half = params.depth / 2
+                const feet = assets.layout.feet, straight = assets.layout.straight
+                return S.map(s => {
+                    const q = Math.min(1, Math.min(s, L - s) / straight)
+                    const f = 0.65 * q + 0.35 * q * q * (3 - 2 * q)
+                    return [feet[0] + (-half - feet[0]) * f, feet[1] + (half - feet[1]) * f]
+                })
+        strip:
+            use:
+                import: ./bent-ply.moon
+            with:
+                path:
+                    asset: centerline
+                edges:
+                    asset: edges
+                thickness:
+                    param: thickness
+                plies:
+                    param: plies
+                start_plane:
+                    expression: |
+                        assets.layout.plane
+                end_plane:
+                    expression: |
+                        assets.layout.plane
+                uv_offset:
+                    param: uv_offset
+                face_material:
+                    param: wood
+                edge_material:
+                    param: edge
+        screw:
+            pipe:
+              - use:
+                    import: ./screw.moon
+                with:
+                    material:
+                        param: screw_metal
+                # Driven from below.
+              - op: Transform
+                with:
+                    rotate: [180, 0, 0]
+        screw_heads:
+            op: Place
+            with:
+                positions:
+                    expression: |
+                        params.screws.map(p => [p[0], -params.thickness, p[1]])
+            input:
+                asset: screw
+        glide:
+            pipe:
+              - op: Cylinder
+                with:
+                    radiusLow: 0.0062
+                    radiusHigh: 0.0075
+                    height:
+                        param: glide_height
+                    resolution: 32
+                    anchor: [0.5, 1, 0.5]
+              - op: ApplyMaterial
+                with:
+                    material:
+                        param: steel
+        glides:
+            op: Place
+            with:
+                positions:
+                    expression: |
+                        assets.layout.glides
+            input:
+                asset: glide
+    render:
+        group:
+          - pipe:
+              - group:
+                  - asset: strip
+                  - asset: screw_heads
+              - op: Transform
+                with:
+                    rotate:
+                        expression: |
+                            [params.pitch, 0, 0]
+          - asset: glides
+parts/molded-panel.moon: |
+    moon: "1.0"
+    doc: |
+        A thin plywood panel pressed over a mould, as a mesh computed from data: a seat
+        or backrest shell. The panel lies on the X-Z plane; `outline` is its shape seen
+        from above and `mould` gives the height (Y) of its middle layer at any point. The
+        panel has an even thickness measured square to its surface and softly rounded edges.
+        Both faces carry the face material with the grain along Z; the rim carries the
+        edge material, which shows the plies.
+    params:
+        outline:
+            default: [[0.2, 0.2], [-0.2, 0.2], [-0.2, -0.2], [0.2, -0.2]]
+            doc: Closed outline as [x, z] points in meters, closely and evenly spaced, around `center`.
+        mould:
+            doc: |
+                Height of the mould: takes `points` as [x, z] pairs and returns one height per point, in meters.
+            params:
+                points: [[0, 0]]
+            render:
+                expression: |
+                    params.points.map(p => 0)
+        center:
+            default: [0, 0]
+            doc: A point every outline point can be seen from; the mesh fans out from it.
+        thickness:
+            default: 0.008
+            doc: Thickness of the panel, in meters.
+        plies:
+            default: 5
+            doc: Number of veneers visible on the rim.
+        edge_radius:
+            default: 0.002
+            doc: Radius of the rounded edges, in meters.
+        rings:
+            default: 36
+            doc: Number of mesh rings between the center and the rim.
+        face_tile:
+            default: 0.3
+            doc: Edge length of one tile of the face texture, in meters.
+        uv_offset:
+            default: [0, 0]
+            doc: Shift of the face texture, in tiles.
+        face_material:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge_material:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the rim.
+    render:
+        expression: |
+            const O = params.outline.map(p => [p[0], p[1]])
+            const N = O.length, M = params.rings
+            const T = params.thickness
+            const r = Math.min(params.edge_radius, T / 2 - 1e-4)
+            const c = params.center.map(v => v)
+
+            // Outward direction of the outline at each point, and the outline pulled in by
+            // the edge radius: the faces end there and the rounded edge begins.
+            let area = 0
+            for (let i = 0; i < N; i++) {
+                const a = O[i], b = O[(i + 1) % N]
+                area += a[0] * b[1] - b[0] * a[1]
+            }
+            const turn = area > 0 ? 1 : -1
+            const out = [], inner = []
+            for (let i = 0; i < N; i++) {
+                const a = O[(i + N - 1) % N], b = O[(i + 1) % N]
+                const tx = b[0] - a[0], tz = b[1] - a[1], tl = Math.hypot(tx, tz)
+                out.push([turn * tz / tl, -turn * tx / tl])
+                inner.push([O[i][0] - r * out[i][0], O[i][1] - r * out[i][1]])
+            }
+
+            // Plan points: the center, then rings scaled out to the inner outline.
+            const plan = [c]
+            for (let k = 1; k <= M; k++) {
+                for (let i = 0; i < N; i++) {
+                    plan.push([c[0] + (inner[i][0] - c[0]) * k / M, c[1] + (inner[i][1] - c[1]) * k / M])
+                }
+            }
+            const n = plan.length
+
+            // Heights and slopes from the mould, asked for in one call.
+            const eps = 5e-4
+            const query = []
+            for (const [dx, dz] of [[0, 0], [eps, 0], [-eps, 0], [0, eps], [0, -eps]]) {
+                for (const p of plan) query.push([p[0] + dx, p[1] + dz])
+            }
+            const H = params.mould({ points: query }).map(v => v)
+            const mid = [], up = [], slope = []
+            for (let j = 0; j < n; j++) {
+                const hx = (H[n + j] - H[2 * n + j]) / (2 * eps), hz = (H[3 * n + j] - H[4 * n + j]) / (2 * eps)
+                const l = Math.hypot(hx, 1, hz)
+                mid.push([plan[j][0], H[j], plan[j][1]])
+                up.push([-hx / l, 1 / l, -hz / l])
+                slope.push([hx, hz])
+            }
+
+            const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+            const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+            const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+            const along = (p, d, s) => [p[0] + d[0] * s, p[1] + d[1] * s, p[2] + d[2] * s]
+            const builder = () => {
+                const m = { vertices: [], normals: [], materialUVs: [], triangles: [] }
+                m.add = (p, nv, uv) => { m.vertices.push(p); m.normals.push(nv); m.materialUVs.push(uv); return m.vertices.length - 1 }
+                m.tri = (a, b, d) => {
+                    const g = cross(sub(m.vertices[b], m.vertices[a]), sub(m.vertices[d], m.vertices[a]))
+                    if (Math.hypot(g[0], g[1], g[2]) < 1e-14) return
+                    const s = [0, 1, 2].map(j => m.normals[a][j] + m.normals[b][j] + m.normals[d][j])
+                    if (dot(g, s) >= 0) m.triangles.push([a, b, d]); else m.triangles.push([a, d, b])
+                }
+                m.quad = (a, b, d, e) => { m.tri(a, b, d); m.tri(a, d, e) }
+                m.record = () => ({ vertices: m.vertices, normals: m.normals, materialUVs: m.materialUVs, triangles: m.triangles })
+                return m
+            }
+
+            const tile = params.face_tile, off = params.uv_offset.map(v => v)
+            const faces = builder(), rim = builder()
+            const rimTile = 0.05, stack = params.plies / 2
+            let perimeter = 0
+            const run = [0]
+            for (let i = 0; i < N; i++) {
+                const a = O[i], b = O[(i + 1) % N]
+                perimeter += Math.hypot(b[0] - a[0], b[1] - a[1])
+                run.push(perimeter)
+            }
+            const rimScale = Math.max(1, Math.round(perimeter / rimTile)) / perimeter
+            const rimRows = [[], []]
+
+            // side = 1 builds the upper face, side = -1 the lower one.
+            for (const side of [1, -1]) {
+                const uv = p => side > 0
+                    ? [p[2] / tile + off[0], p[0] / tile + off[1]]
+                    : [p[2] / tile + off[0] + 0.37, -p[0] / tile + off[1] + 0.53]
+                const face = j => {
+                    const p = along(mid[j], up[j], side * T / 2)
+                    return faces.add(p, up[j].map(v => v * side), uv(p))
+                }
+                const center = face(0)
+                const rings = []
+                for (let k = 1; k <= M; k++) {
+                    const ring = []
+                    for (let i = 0; i < N; i++) ring.push(face(1 + (k - 1) * N + i))
+                    rings.push(ring)
+                }
+                // The rounded edge: a quarter circle from the face to the rim.
+                for (let a = 1; a <= 3; a++) {
+                    const phi = a * Math.PI / 6, ring = []
+                    for (let i = 0; i < N; i++) {
+                        const j = 1 + (M - 1) * N + i
+                        const d = out[i], rise = slope[j][0] * d[0] + slope[j][1] * d[1]
+                        const l = Math.hypot(1, rise)
+                        const outward = [d[0] / l, rise / l, d[1] / l]
+                        const nv = [0, 1, 2].map(q => side * Math.cos(phi) * up[j][q] + Math.sin(phi) * outward[q])
+                        const p = along(along(mid[j], up[j], side * (T / 2 - r)), nv, r)
+                        ring.push(faces.add(p, nv, uv(p)))
+                        if (a === 3) {
+                            const u = run[i] * rimScale
+                            rimRows[side > 0 ? 0 : 1].push([p, outward, u])
+                        }
+                    }
+                    rings.push(ring)
+                }
+                for (let i = 0; i < N; i++) faces.tri(center, rings[0][i], rings[0][(i + 1) % N])
+                for (let k = 0; k < rings.length - 1; k++) {
+                    for (let i = 0; i < N; i++) {
+                        const i1 = (i + 1) % N
+                        faces.quad(rings[k][i], rings[k][i1], rings[k + 1][i1], rings[k + 1][i])
+                    }
+                }
+            }
+
+            // The rim between the two rounded edges, with the plies stacked across it.
+            const cols = []
+            for (let i = 0; i <= N; i++) {
+                const top = rimRows[0][i % N], bottom = rimRows[1][i % N]
+                const u = i === N ? perimeter * rimScale : top[2]
+                cols.push([rim.add(top[0], top[1], [u, 0]), rim.add(bottom[0], bottom[1], [u, stack])])
+            }
+            for (let i = 0; i < N; i++) rim.quad(cols[i][0], cols[i + 1][0], cols[i + 1][1], cols[i][1])
+
+            return Group([
+                ApplyMaterial({ input: Mesh(faces.record()), material: params.face_material }),
+                ApplyMaterial({ input: Mesh(rim.record()), material: params.edge_material }),
+            ])
+        produces: MESHES
+parts/ply-edge.moon: |
+    moon: "1.0"
+    doc: |
+        The sawn edge of plywood as a MATERIAL: thin veneers seen end-on, separated by dark
+        glue lines and darkened by age. One texture tile holds two plies across V (one seen
+        along its grain, one across it); the plies run along texture U. A part showing n
+        plies maps V from 0 to n / 2.
+    params:
+        tint:
+            default: [1, 1, 1, 1]
+            doc: Stain multiplied onto the texture (linear RGBA).
+            kind: color
+        pixels:
+            default: 256
+            doc: Texture resolution, in pixels per side.
+    assets:
+        plies:
+            expression: |
+                const n = params.pixels, tau = 2 * Math.PI
+                const [xi, yi] = Coords({ shape: [n, n] })
+                const u = xi / n, v = yi / n
+                // Two plies per tile; a glue line at the start of each.
+                const ply = (v * 2) % 1
+                const second = Step({ input: v, edge: 0.5 })
+                const glue = 1 - Smoothstep({ input: ply, edge0: 0.06, edge1: 0.2 })
+                // Cross-cut plies are darker and speckled with cut pores; long-grain plies streaky.
+                const speckle = (Sin((u * 61 + v * 7) * tau + Sin((u * 17) * tau) * 3) * 0.5 + 0.5)
+                    * (Sin((u * 37 - v * 3) * tau + 1.4) * 0.5 + 0.5)
+                const streak = Sin((v * 14 + Sin((u * 2) * tau) * 0.4) * tau) * 0.5 + 0.5
+                const tone = second * (0.42 + speckle * 0.35) + (1 - second) * (0.12 + streak * 0.2)
+                const t = Clamp({ input: Maximum({ input: tone, other: glue * 0.95 }), min: 0, max: 1 })
+                const light = Data([0.3, 0.105, 0.032])
+                const dark = Data([0.065, 0.02, 0.007])
+                const field = Mix({ input: light, target: dark, t: Reshape({ input: t, newShape: [n, n, 1] }) })
+                return Image({ input: field, transfer: "srgb" })
+            produces: IMAGE
+    render:
+        op: Material
+        with:
+            color:
+                asset: plies
+            textureSizeInMeters: 0.05
+            colorFactor:
+                param: tint
+            roughnessFactor: 0.6
+            metallicFactor: 0
+parts/rounded-path.moon: |
+    moon: "1.0"
+    doc: |
+        A polyline whose corners are rounded with arcs, as a dense list of [x, y] points:
+        the centerline of a bent strip. Straight stretches are sampled every `step` and
+        arcs every `angle_step`, so a part built on it can taper and bend smoothly.
+    params:
+        points:
+            default: [[0, 0], [0.2, 0], [0.2, 0.2]]
+            doc: Corner points as [x, y], in meters; the first and last are the ends.
+        radii:
+            default: [0.05]
+            doc: Radius of the arc at each inner corner, in meters; 0 leaves it sharp.
+        step:
+            default: 0.01
+            doc: Spacing of the points on straight stretches, in meters.
+        angle_step:
+            default: 4
+            doc: Spacing of the points on arcs, in degrees.
+    render:
+        expression: |
+            const P = params.points.map(p => [p[0], p[1]])
+            const R = params.radii.map(v => v)
+            const out = []
+            const line = (a, b) => {
+                const m = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / params.step))
+                for (let j = 0; j < m; j++) out.push([a[0] + (b[0] - a[0]) * j / m, a[1] + (b[1] - a[1]) * j / m])
+            }
+            let cur = P[0]
+            for (let i = 1; i < P.length - 1; i++) {
+                const V = P[i], r = R[i - 1]
+                if (!(r > 0)) { line(cur, V); cur = V; continue }
+                let ux = P[i - 1][0] - V[0], uy = P[i - 1][1] - V[1], vx = P[i + 1][0] - V[0], vy = P[i + 1][1] - V[1]
+                const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy)
+                ux /= lu; uy /= lu; vx /= lv; vy /= lv
+                const phi = Math.acos(Math.max(-1, Math.min(1, ux * vx + uy * vy)))
+                const d = r / Math.tan(phi / 2)
+                let bx = ux + vx, by = uy + vy
+                const lb = Math.hypot(bx, by)
+                const cx = V[0] + bx / lb * r / Math.sin(phi / 2), cy = V[1] + by / lb * r / Math.sin(phi / 2)
+                const t0 = [V[0] + ux * d, V[1] + uy * d], t1 = [V[0] + vx * d, V[1] + vy * d]
+                line(cur, t0)
+                const a0 = Math.atan2(t0[1] - cy, t0[0] - cx)
+                let da = Math.atan2(t1[1] - cy, t1[0] - cx) - a0
+                while (da > Math.PI) da -= 2 * Math.PI
+                while (da < -Math.PI) da += 2 * Math.PI
+                const m = Math.max(2, Math.ceil(Math.abs(da) / (params.angle_step * Math.PI / 180)))
+                for (let j = 0; j < m; j++) out.push([cx + r * Math.cos(a0 + da * j / m), cy + r * Math.sin(a0 + da * j / m)])
+                cur = t1
+            }
+            line(cur, P[P.length - 1])
+            out.push(P[P.length - 1])
+            return out
+parts/screw.moon: |
+    moon: "1.0"
+    doc: |
+        The visible head of an oval-head Phillips wood screw, optionally seated in a cup
+        washer. It sits on the plane Y = 0 at the origin and points up (+Y); turn it to
+        face the way the screw was driven.
+    params:
+        diameter:
+            default: 0.009
+            doc: Diameter of the head, in meters.
+        height:
+            default: 0.0022
+            doc: Height of the domed head, in meters.
+        washer:
+            default: false
+            doc: Seat the head in a cup washer.
+        material:
+            default:
+                op: Material
+                with:
+                    color: [0.62, 0.6, 0.52, 1]
+                    roughness: 0.42
+                    metallic: 1
+            doc: Metal of the screw.
+    render:
+        pipe:
+          - expression: |
+                const R = params.diameter / 2, h = params.height
+                const base = params.washer ? h * 0.55 : 0
+                // Profile to revolve: [radius, height].
+                const profile = [[0, 0]]
+                if (params.washer) profile.push([R * 1.45, 0], [R * 1.45, base * 0.3], [R * 1.04, base])
+                else profile.push([R, 0])
+                for (let j = 0; j < 8; j++) {
+                    const t = j / 8 * Math.PI / 2
+                    profile.push([R * Math.cos(t), base + h * 0.15 + h * 0.85 * Math.sin(t)])
+                }
+                profile.push([0, base + h])
+                const head = Revolve({ input: Polygon({ points: profile }), resolution: 48 })
+                // The cross recess: two slots sunk into the dome.
+                const slot = Box({ size: [R * 1.15, h * 0.9, R * 0.2] })
+                const recess = Transform({
+                    input: Union([slot, Transform({ input: slot, rotate: [0, 90, 0] })]),
+                    rotate: [0, 17, 0],
+                    translate: [0, base + h * 0.9, 0],
+                })
+                return Difference([head, recess])
+            produces: MESHES
+          - op: Smooth
+            with:
+                subdivisions: 0
+                minSharpAngle: 50
+          - op: ApplyMaterial
+            with:
+                material:
+                    param: material
+parts/seat.moon: |
+    moon: "1.0"
+    doc: |
+        The seat shell of the lounge chair: five-ply moulded plywood, 555 mm wide and
+        480 mm deep. Seen from above it is a rounded shield, widest ahead of the middle,
+        with a shallow notch in the rear edge where the spine passes. The sides curl up,
+        most at the rear, and the front edge rolls down like a waterfall.
+        It lies on the X-Z plane with its middle layer through the origin at the center,
+        front toward +Z, top toward +Y; the grain runs front to back.
+    params:
+        thickness:
+            default: 0.008
+            doc: Thickness of the plywood, in meters.
+        wood:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the plywood edge.
+    assets:
+        outline:
+            use:
+                import: ./closed-curve.moon
+            with:
+                # [x, z], from the middle of the front edge around one side to the notch.
+                points:
+                  - [0, 0.24]
+                  - [0.09, 0.2376]
+                  - [0.17, 0.2313]
+                  - [0.225, 0.213]
+                  - [0.259, 0.178]
+                  - [0.2745, 0.13]
+                  - [0.2775, 0.07]
+                  - [0.274, 0]
+                  - [0.2655, -0.075]
+                  - [0.25, -0.145]
+                  - [0.226, -0.197]
+                  - [0.188, -0.228]
+                  - [0.14, -0.24]
+                  - [0.1, -0.2395]
+                  - [0.06, -0.233]
+                  - [0.025, -0.2285]
+                  - [0, -0.228]
+                count: 240
+        mould:
+            doc: |
+                Height of the seat's middle layer at [x, z] points, in meters.
+            params:
+                points: [[0, 0]]
+                side_rise:
+                    default: 0.04
+                    doc: How far the side edges curl up at the rear corners, in meters.
+                front_drop:
+                    default: 0.045
+                    doc: How far the front edge rolls down, in meters.
+            render:
+                expression: |
+                    const clamp = v => Math.min(1, Math.max(0, v))
+                    return params.points.map(p => {
+                        const x = p[0], z = p[1]
+                        // Sides curl up: strongly at the rear corners, a little at the front.
+                        const q = clamp((z + 0.22) / 0.36), ease = q * q * (3 - 2 * q)
+                        const rise = params.side_rise * (1 - 0.7 * ease)
+                        const side = rise * Math.pow(Math.abs(x) / 0.2775, 2.4)
+                        // The front rolls down, following the curve of the front edge.
+                        const s = clamp((z + 0.3 * x * x - 0.12) / 0.12)
+                        const roll = -params.front_drop * s * s
+                        // The rear edge lifts slightly in the middle.
+                        const b = clamp((-0.12 - z) / 0.12)
+                        return side + roll + 0.006 * b * b
+                    })
+    render:
+        use:
+            import: ./molded-panel.moon
+        with:
+            outline:
+                asset: outline
+            mould:
+                asset: mould
+            thickness:
+                param: thickness
+            rings: 40
+            face_material:
+                param: wood
+            edge_material:
+                param: edge
+parts/shock-mount.moon: |
+    moon: "1.0"
+    doc: |
+        A rubber shock mount: a black pad glued to a plywood shell and screwed to the
+        frame, which lets the shell give a little. A slab with rounded corners, centered
+        on the origin, lying flat with its thickness along Y.
+    params:
+        size:
+            default: [0.115, 0.06]
+            doc: Size along X and Z, in meters.
+        thickness:
+            default: 0.016
+            doc: Thickness along Y, in meters.
+        corner_radius:
+            default: 0.014
+            doc: Radius of the four corners, in meters.
+    render:
+        pipe:
+          - op: Rect
+            with:
+                size:
+                    param: size
+                cornerRadius:
+                    expression: |
+                        [params.corner_radius, params.corner_radius]
+                resolution: 64
+          - op: Extrude
+            with:
+                height:
+                    param: thickness
+          - op: Transform
+            with:
+                translate:
+                    expression: |
+                        [0, -params.thickness / 2, 0]
+          - op: Smooth
+            with:
+                subdivisions: 0
+                minSharpAngle: 60
+          - op: ApplyMaterial
+            with:
+                material:
+                    op: Material
+                    with:
+                        color: [0.022, 0.02, 0.019, 1]
+                        roughness: 0.82
+parts/spine.moon: |
+    moon: "1.0"
+    doc: |
+        The spine of the lounge chair: one strip of plywood that runs under the seat,
+        steps down to the rear legs, turns up in a tight bend and rises behind the
+        backrest. Its side profile is given as corner points in the chair's Z-Y plane;
+        the strip is centered on X. It keeps its full width up to the bend and narrows
+        from there to the top, whose corners are rounded.
+    params:
+        corners:
+            default: [[0.18, 0.35], [-0.09, 0.31], [-0.155, 0.255], [-0.326, 0.255], [-0.326, 0.4], [-0.378, 0.571]]
+            doc: Corner points of the centerline as [z, y] in meters, from the front end to the top.
+        radii:
+            default: [0.05, 0.05, 0.04, 0.25]
+            doc: Bend radius at each inner corner, at the centerline, in meters.
+        bend:
+            default: 3
+            doc: Index of the corner where the strip turns up; it narrows from there on.
+        width:
+            default: 0.135
+            doc: Width under the seat, in meters.
+        top_width:
+            default: 0.105
+            doc: Width at the top end, in meters.
+        thickness:
+            default: 0.0145
+            doc: Thickness of the plywood, in meters.
+        plies:
+            default: 11
+            doc: Number of veneers visible on the edges.
+        wood:
+            default:
+                op: Material
+                with:
+                    color: [0.6, 0.3, 0.1, 1]
+            doc: Material of the two faces.
+        edge:
+            default:
+                op: Material
+                with:
+                    color: [0.3, 0.12, 0.05, 1]
+            doc: Material of the plywood edges.
+    assets:
+        centerline:
+            use:
+                import: ./rounded-path.moon
+            with:
+                points:
+                    param: corners
+                radii:
+                    param: radii
+                step: 0.01
+        edges:
+            expression: |
+                const P = assets.centerline.map(p => [p[0], p[1]])
+                const S = [0]
+                for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]))
+                const L = S[S.length - 1]
+                // The taper starts where the path comes closest to the bend's corner point.
+                const corner = params.corners[params.bend]
+                let start = 0, best = 1e9
+                for (let i = 0; i < P.length; i++) {
+                    const d = Math.hypot(P[i][0] - corner[0], P[i][1] - corner[1])
+                    if (d < best) { best = d; start = S[i] }
+                }
+                return S.map(s => {
+                    const q = Math.min(1, Math.max(0, (s - start) / (L - start)))
+                    const half = (params.width + (params.top_width - params.width) * q) / 2
+                    return [-half, half]
+                })
+    render:
+        pipe:
+          - use:
+                import: ./bent-ply.moon
+            with:
+                path:
+                    asset: centerline
+                edges:
+                    asset: edges
+                thickness:
+                    param: thickness
+                plies:
+                    param: plies
+                start_round: 0.006
+                end_round: 0.014
+                uv_offset: [0.17, 0.61]
+                face_material:
+                    param: wood
+                edge_material:
+                    param: edge
+            # The strip is built with its path in X-Y and its width on Z; turn the path
+            # into the chair's Z-Y plane.
+          - op: Transform
+            with:
+                rotate: [0, -90, 0]
+main.moon.webp: !!binary |
+    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
+    xttifKq/WKsfhoj+Uo+kF3joAAAAAAAA
